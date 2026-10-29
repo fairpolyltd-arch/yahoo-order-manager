@@ -1,8 +1,10 @@
 package com.example.yahooordermanager.ui.main
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
@@ -16,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
+import com.example.yahooordermanager.data.DailySummaryDto
 import com.example.yahooordermanager.data.DashboardMetricsDto
 import com.example.yahooordermanager.data.DefaultDataRepository
 import com.example.yahooordermanager.data.OrderDto
@@ -45,6 +48,9 @@ fun MainScreen(
             OrdersDashboard(
                 orders = state.orders,
                 metrics = state.metrics,
+                dailySummary = state.dailySummary,
+                selectedDayFilter = state.selectedDayFilter,
+                onSelectDay = { filter -> viewModel.selectDayFilter(filter) },
                 onSyncClick = { viewModel.triggerSync() },
                 modifier = modifier
             )
@@ -71,6 +77,9 @@ fun MainScreen(
 internal fun OrdersDashboard(
     orders: List<OrderDto>,
     metrics: DashboardMetricsDto,
+    dailySummary: List<DailySummaryDto>,
+    selectedDayFilter: String,
+    onSelectDay: (String) -> Unit,
     onSyncClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -98,9 +107,9 @@ internal fun OrdersDashboard(
                             color = Color.White
                         )
                         Text(
-                            "Intelligent Order Extraction",
+                            "Past 7 Days & Daily Tracker",
                             fontSize = 11.sp,
-                            color = Color.White.copy(alpha = 0.8f)
+                            color = Color.White.copy(alpha = 0.85f)
                         )
                     }
                 },
@@ -125,34 +134,86 @@ internal fun OrdersDashboard(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .background(Color(0xFFF8FAFC))
-                .padding(16.dp)
+                .padding(14.dp)
         ) {
             // Metrics Summary Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                // Today's Orders Highlight Card
+                Card(
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .clickable { onSelectDay("today") },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(containerColor = if (selectedDayFilter == "today") YahooPurple else Color(0xFF4C1D95)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(modifier = Modifier.padding(10.dp)) {
+                        Text("Today's Orders", fontSize = 10.sp, color = Color.White.copy(alpha = 0.8f), fontWeight = FontWeight.SemiBold)
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(metrics.today_orders.toString(), fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("${metrics.today_quantity.toInt()} pcs", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f))
+                        }
+                    }
+                }
+
                 MetricCard(
-                    title = "Total Orders",
+                    title = "7-Day Total",
                     value = metrics.total_orders.toString(),
                     color = YahooPurple,
                     modifier = Modifier.weight(1f)
                 )
+
                 MetricCard(
                     title = "Confirmed",
                     value = metrics.confirmed_orders.toString(),
                     color = StatusGreen,
                     modifier = Modifier.weight(1f)
                 )
-                MetricCard(
-                    title = "Total Qty",
-                    value = metrics.total_quantity.toInt().toString(),
-                    color = Color(0xFF2563EB),
-                    modifier = Modifier.weight(1f)
-                )
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Past 7 Days Horizontal Filter Chips
+            Text(
+                "Daily Orders (Past 7 Days)",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF334155)
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item {
+                    val isAll = selectedDayFilter == "all"
+                    DayChip(
+                        label = "All Days",
+                        count = metrics.total_orders,
+                        isSelected = isAll,
+                        onClick = { onSelectDay("all") }
+                    )
+                }
+
+                items(dailySummary) { day ->
+                    val isSelected = (selectedDayFilter == day.date) || (selectedDayFilter == "today" && day.is_today)
+                    DayChip(
+                        label = if (day.is_today) "Today" else day.label_en.split(" ")[0],
+                        count = day.order_count,
+                        isSelected = isSelected,
+                        onClick = { onSelectDay(day.date) }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Search Bar
             OutlinedTextField(
@@ -168,17 +229,17 @@ internal fun OrdersDashboard(
                 singleLine = true
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Orders List
             Text(
-                "Extracted Orders (${filteredOrders.size})",
-                fontSize = 14.sp,
+                "Orders List (${filteredOrders.size})",
+                fontSize = 13.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color(0xFF1E293B)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
@@ -187,6 +248,50 @@ internal fun OrdersDashboard(
                 items(filteredOrders) { order ->
                     OrderCard(order = order)
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun DayChip(
+    label: String,
+    count: Int,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier.clickable { onClick() },
+        shape = RoundedCornerShape(8.dp),
+        color = if (isSelected) YahooPurple else Color.White,
+        border = if (isSelected) null else androidx.compose.foundation.BorderStroke(1.dp, Color(0xFFE2E8F0)),
+        shadowElevation = if (isSelected) 2.dp else 0.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                label,
+                fontSize = 11.sp,
+                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                color = if (isSelected) Color.White else Color(0xFF334155)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Box(
+                modifier = Modifier
+                    .background(
+                        if (isSelected) Color.White.copy(alpha = 0.25f) else Color(0xFFF1F5F9),
+                        RoundedCornerShape(10.dp)
+                    )
+                    .padding(horizontal = 5.dp, vertical = 1.dp)
+            ) {
+                Text(
+                    count.toString(),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isSelected) Color.White else Color(0xFF475569)
+                )
             }
         }
     }
@@ -213,9 +318,9 @@ fun OrderCard(order: OrderDto) {
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.5.dp)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -223,14 +328,14 @@ fun OrderCard(order: OrderDto) {
             ) {
                 Text(
                     order.po_number ?: "NO PO",
-                    fontSize = 15.sp,
+                    fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = YahooPurple
                 )
                 StatusPill(status = order.status)
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -238,13 +343,13 @@ fun OrderCard(order: OrderDto) {
             ) {
                 Text(
                     "Booking: ${order.booking_number ?: "N/A"}",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color(0xFF334155),
                     fontWeight = FontWeight.Medium
                 )
                 Text(
                     "Buyer: ${order.buyer_name ?: "Unknown"}",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     color = Color(0xFF475569),
                     fontWeight = FontWeight.Bold
                 )
@@ -258,12 +363,12 @@ fun OrderCard(order: OrderDto) {
             ) {
                 Text(
                     order.order_type ?: "Order",
-                    fontSize = 11.sp,
+                    fontSize = 10.sp,
                     color = Color.Gray
                 )
                 Text(
                     "Qty: ${order.total_quantity.toInt()} ${order.quantity_unit} • ${order.currency} ${order.total_amount}",
-                    fontSize = 12.sp,
+                    fontSize = 11.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = Color(0xFF0F172A)
                 )
@@ -286,6 +391,6 @@ fun StatusPill(status: String) {
             .background(bgColor, RoundedCornerShape(16.dp))
             .padding(horizontal = 8.dp, vertical = 2.dp)
     ) {
-        Text(status, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = textColor)
+        Text(status, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = textColor)
     }
 }

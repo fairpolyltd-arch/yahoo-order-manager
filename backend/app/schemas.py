@@ -145,6 +145,16 @@ class SyncLogResponse(BaseModel):
         from_attributes = True
 
 # Dashboard KPI Metrics
+class DailySummaryItem(BaseModel):
+    date: str
+    day_name: str
+    label_en: str
+    label_bn: str
+    order_count: int
+    total_quantity: float
+    total_amount: float
+    is_today: bool
+
 class DashboardMetrics(BaseModel):
     total_orders: int
     confirmed_orders: int
@@ -152,5 +162,8 @@ class DashboardMetrics(BaseModel):
     duplicate_orders: int
     total_buyers: int
     total_quantity: float
+    today_orders: int = 0
+    today_quantity: float = 0.0
+    past_7_days_orders: int = 0
     last_sync_time: Optional[datetime.datetime] = None
     sync_status: str

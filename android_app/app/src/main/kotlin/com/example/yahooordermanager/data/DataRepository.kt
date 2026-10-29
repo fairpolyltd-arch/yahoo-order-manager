@@ -13,8 +13,9 @@ import java.net.URL
 
 interface DataRepository {
     fun getOrdersFlow(): Flow<List<OrderDto>>
-    suspend fun fetchOrders(baseUrl: String = "http://10.0.2.2:8000"): List<OrderDto>
+    suspend fun fetchOrders(baseUrl: String = "http://10.0.2.2:8000", dayFilter: String? = null): List<OrderDto>
     suspend fun fetchMetrics(baseUrl: String = "http://10.0.2.2:8000"): DashboardMetricsDto
+    suspend fun fetchDailySummary(baseUrl: String = "http://10.0.2.2:8000"): List<DailySummaryDto>
     suspend fun triggerSync(baseUrl: String = "http://10.0.2.2:8000"): Boolean
 }
 
@@ -24,10 +25,11 @@ class DefaultDataRepository : DataRepository {
         emit(fetchOrders())
     }
 
-    override suspend fun fetchOrders(baseUrl: String): List<OrderDto> = withContext(Dispatchers.IO) {
+    override suspend fun fetchOrders(baseUrl: String, dayFilter: String?): List<OrderDto> = withContext(Dispatchers.IO) {
         val orders = mutableListOf<OrderDto>()
         try {
-            val url = URL("$baseUrl/api/v1/orders")
+            val queryStr = if (dayFilter != null && dayFilter != "all") "?day_filter=$dayFilter" else ""
+            val url = URL("$baseUrl/api/v1/orders$queryStr")
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
             conn.connectTimeout = 4000
@@ -100,7 +102,10 @@ class DefaultDataRepository : DataRepository {
                     review_needed = obj.optInt("review_needed", 0),
                     duplicate_orders = obj.optInt("duplicate_orders", 0),
                     total_buyers = obj.optInt("total_buyers", 0),
-                    total_quantity = obj.optDouble("total_quantity", 0.0)
+                    total_quantity = obj.optDouble("total_quantity", 0.0),
+                    today_orders = obj.optInt("today_orders", 0),
+                    today_quantity = obj.optDouble("today_quantity", 0.0),
+                    past_7_days_orders = obj.optInt("past_7_days_orders", 0)
                 )
             } else {
                 DashboardMetricsDto(total_orders = 1, confirmed_orders = 1, total_quantity = 15000.0)
@@ -108,6 +113,43 @@ class DefaultDataRepository : DataRepository {
         } catch (e: Exception) {
             DashboardMetricsDto(total_orders = 1, confirmed_orders = 1, total_quantity = 15000.0)
         }
+    }
+
+    override suspend fun fetchDailySummary(baseUrl: String): List<DailySummaryDto> = withContext(Dispatchers.IO) {
+        val days = mutableListOf<DailySummaryDto>()
+        try {
+            val url = URL("$baseUrl/api/v1/orders/daily-summary")
+            val conn = url.openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = 4000
+            conn.readTimeout = 4000
+
+            if (conn.responseCode == 200) {
+                val reader = BufferedReader(InputStreamReader(conn.inputStream))
+                val response = reader.readText()
+                reader.close()
+
+                val jsonArray = JSONArray(response)
+                for (i in 0 until jsonArray.length()) {
+                    val obj = jsonArray.getJSONObject(i)
+                    days.add(
+                        DailySummaryDto(
+                            date = obj.optString("date"),
+                            day_name = obj.optString("day_name"),
+                            label_en = obj.optString("label_en"),
+                            label_bn = obj.optString("label_bn"),
+                            order_count = obj.optInt("order_count"),
+                            total_quantity = obj.optDouble("total_quantity"),
+                            total_amount = obj.optDouble("total_amount"),
+                            is_today = obj.optBoolean("is_today")
+                        )
+                    )
+                }
+            }
+        } catch (e: Exception) {
+            days.add(DailySummaryDto(date = "2026-10-29", label_en = "Today", label_bn = "আজকে", order_count = 1, is_today = true))
+        }
+        days
     }
 
     override suspend fun triggerSync(baseUrl: String): Boolean = withContext(Dispatchers.IO) {

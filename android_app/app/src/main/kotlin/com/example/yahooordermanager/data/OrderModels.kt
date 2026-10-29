@@ -26,5 +26,20 @@ data class DashboardMetricsDto(
     val review_needed: Int = 0,
     val duplicate_orders: Int = 0,
     val total_buyers: Int = 0,
-    val total_quantity: Double = 0.0
+    val total_quantity: Double = 0.0,
+    val today_orders: Int = 0,
+    val today_quantity: Double = 0.0,
+    val past_7_days_orders: Int = 0
+)
+
+@Serializable
+data class DailySummaryDto(
+    val date: String = "",
+    val day_name: String = "",
+    val label_en: String = "",
+    val label_bn: String = "",
+    val order_count: Int = 0,
+    val total_quantity: Double = 0.0,
+    val total_amount: Double = 0.0,
+    val is_today: Boolean = false
 )

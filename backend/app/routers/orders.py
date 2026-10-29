@@ -10,16 +10,93 @@ from app.models import Order, OrderItem, RawEmail, Attachment
 from app.schemas import OrderResponse, OrderUpdate, DashboardMetrics
 from app.services.extractor import extract_full_order
 
+import datetime
+import uuid
+from typing import List, Optional, Dict, Any
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session
+from sqlalchemy import or_, func
+
+from app.database import get_db
+from app.models import Order, OrderItem, RawEmail, Attachment
+from app.schemas import OrderResponse, OrderUpdate, DashboardMetrics, DailySummaryItem
+from app.services.extractor import extract_full_order
+
 router = APIRouter(prefix="/orders", tags=["Orders"])
+
+BN_DAYS = {
+    "Monday": "সোমবার", "Tuesday": "মঙ্গলবার", "Wednesday": "বুধবার",
+    "Thursday": "বৃহস্পতিবার", "Friday": "শুক্রবার", "Saturday": "শনিবার", "Sunday": "রবিবার"
+}
+BN_MONTHS = {
+    1: "জানু", 2: "ফেব্রু", 3: "মার্চ", 4: "এপ্রিল", 5: "মে", 6: "জুন",
+    7: "জুলাই", 8: "আগস্ট", 9: "সেপ্টে", 10: "অক্টো", 11: "নভে", 12: "ডিসে"
+}
+
+def get_effective_date(order: Order) -> datetime.date:
+    """Determine effective date of an order based on Yahoo email received date or order date."""
+    if order.raw_email and order.raw_email.date_received:
+        return order.raw_email.date_received.date()
+    if order.order_date:
+        return order.order_date.date()
+    if order.created_at:
+        return order.created_at.date()
+    return datetime.date.today()
+
+@router.get("/daily-summary", response_model=List[DailySummaryItem])
+def get_daily_summary(db: Session = Depends(get_db)):
+    """Returns aggregated order counts & metrics for the past 7 days."""
+    today = datetime.date.today()
+    days_data = []
+
+    # Pre-load all orders with their raw_email
+    all_orders = db.query(Order).all()
+
+    for i in range(7):
+        target_date = today - datetime.timedelta(days=i)
+        target_str = target_date.strftime("%Y-%m-%d")
+        day_name = target_date.strftime("%A")
+        day_num = target_date.day
+        month_num = target_date.month
+
+        # Filter orders for this date
+        matching_orders = [o for o in all_orders if get_effective_date(o) == target_date]
+        count = len(matching_orders)
+        tot_qty = sum(o.total_quantity or 0.0 for o in matching_orders)
+        tot_amt = sum(o.total_amount or 0.0 for o in matching_orders)
+
+        if i == 0:
+            label_en = f"Today ({target_date.strftime('%d %b')})"
+            label_bn = f"আজকে ({day_num} {BN_MONTHS[month_num]})"
+        elif i == 1:
+            label_en = f"Yesterday ({target_date.strftime('%d %b')})"
+            label_bn = f"গতকাল ({day_num} {BN_MONTHS[month_num]})"
+        else:
+            label_en = f"{target_date.strftime('%d %b')} ({day_name[:3]})"
+            label_bn = f"{day_num} {BN_MONTHS[month_num]} ({BN_DAYS[day_name][:3]})"
+
+        days_data.append(DailySummaryItem(
+            date=target_str,
+            day_name=day_name,
+            label_en=label_en,
+            label_bn=label_bn,
+            order_count=count,
+            total_quantity=round(tot_qty, 2),
+            total_amount=round(tot_amt, 2),
+            is_today=(i == 0)
+        ))
+
+    return days_data
 
 @router.get("", response_model=List[OrderResponse])
 def list_orders(
     search: Optional[str] = Query(None, description="Search in PO, Booking, Buyer"),
     status: Optional[str] = Query(None, description="CONFIRMED, REVIEW_NEEDED, DUPLICATE, CANCELLED"),
     buyer: Optional[str] = Query(None, description="Filter by buyer"),
+    day_filter: Optional[str] = Query(None, description="'today', 'yesterday', 'last_7_days', 'all', or 'YYYY-MM-DD'"),
     date_from: Optional[datetime.date] = None,
     date_to: Optional[datetime.date] = None,
-    limit: int = 100,
+    limit: int = 150,
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
@@ -42,21 +119,55 @@ def list_orders(
             )
         )
 
-    if date_from:
-        query = query.filter(Order.created_at >= datetime.datetime.combine(date_from, datetime.time.min))
-    if date_to:
-        query = query.filter(Order.created_at <= datetime.datetime.combine(date_to, datetime.time.max))
+    orders = query.order_by(Order.created_at.desc()).all()
+    today = datetime.date.today()
+    yesterday = today - datetime.timedelta(days=1)
+    seven_days_ago = today - datetime.timedelta(days=6)
 
-    return query.order_by(Order.created_at.desc()).offset(offset).limit(limit).all()
+    # Apply Day Filter
+    if day_filter:
+        day_filter = day_filter.strip().lower()
+        if day_filter == "today":
+            orders = [o for o in orders if get_effective_date(o) == today]
+        elif day_filter == "yesterday":
+            orders = [o for o in orders if get_effective_date(o) == yesterday]
+        elif day_filter == "last_7_days":
+            orders = [o for o in orders if get_effective_date(o) >= seven_days_ago]
+        elif day_filter != "all":
+            # Match exact date YYYY-MM-DD
+            try:
+                target_dt = datetime.datetime.strptime(day_filter, "%Y-%m-%d").date()
+                orders = [o for o in orders if get_effective_date(o) == target_dt]
+            except ValueError:
+                pass
+
+    if date_from:
+        orders = [o for o in orders if get_effective_date(o) >= date_from]
+    if date_to:
+        orders = [o for o in orders if get_effective_date(o) <= date_to]
+
+    return orders[offset:offset + limit]
 
 @router.get("/metrics", response_model=DashboardMetrics)
 def get_dashboard_metrics(db: Session = Depends(get_db)):
-    total_orders = db.query(func.count(Order.id)).scalar() or 0
-    confirmed_orders = db.query(func.count(Order.id)).filter(Order.status == "CONFIRMED").scalar() or 0
-    review_needed = db.query(func.count(Order.id)).filter(Order.status == "REVIEW_NEEDED").scalar() or 0
-    duplicate_orders = db.query(func.count(Order.id)).filter(Order.status == "DUPLICATE").scalar() or 0
-    total_buyers = db.query(func.count(func.distinct(Order.buyer_name))).scalar() or 0
-    total_quantity = db.query(func.sum(Order.total_quantity)).scalar() or 0.0
+    all_orders = db.query(Order).all()
+    today = datetime.date.today()
+    seven_days_ago = today - datetime.timedelta(days=6)
+
+    total_orders = len(all_orders)
+    confirmed_orders = sum(1 for o in all_orders if o.status == "CONFIRMED")
+    review_needed = sum(1 for o in all_orders if o.status == "REVIEW_NEEDED")
+    duplicate_orders = sum(1 for o in all_orders if o.status == "DUPLICATE")
+    total_buyers = len(set(o.buyer_name for o in all_orders if o.buyer_name))
+    total_quantity = sum(o.total_quantity or 0.0 for o in all_orders)
+
+    # Today's metrics
+    today_orders_list = [o for o in all_orders if get_effective_date(o) == today]
+    today_orders = len(today_orders_list)
+    today_quantity = sum(o.total_quantity or 0.0 for o in today_orders_list)
+
+    # Past 7 days metrics
+    past_7_days_orders = sum(1 for o in all_orders if get_effective_date(o) >= seven_days_ago)
 
     last_order = db.query(Order).order_by(Order.created_at.desc()).first()
     last_sync = last_order.created_at if last_order else None
@@ -68,6 +179,9 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
         duplicate_orders=duplicate_orders,
         total_buyers=total_buyers,
         total_quantity=round(total_quantity, 2),
+        today_orders=today_orders,
+        today_quantity=round(today_quantity, 2),
+        past_7_days_orders=past_7_days_orders,
         last_sync_time=last_sync,
         sync_status="active"
     )
