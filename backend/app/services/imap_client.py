@@ -27,6 +27,14 @@ def decode_mime_words(raw_header: Optional[str]) -> str:
     except Exception:
         return str(raw_header)
 
+def format_imap_error(err: Any) -> str:
+    err_str = str(err)
+    if "AUTHENTICATIONFAILED" in err_str or "Invalid credentials" in err_str:
+        return "Yahoo authentication failed: Invalid email address or App Password. Please ensure you generated a 16-character App Password from Yahoo Account Security settings."
+    if "timed out" in err_str.lower():
+        return "Connection timed out while reaching imap.mail.yahoo.com:993. Please verify network access."
+    return err_str.replace("b'", "").replace("'", "")
+
 class YahooIMAPClient:
     def __init__(
         self,
@@ -34,32 +42,34 @@ class YahooIMAPClient:
         secret: str,
         auth_type: str = "app_password",
         server: str = "imap.mail.yahoo.com",
-        port: int = 993
+        port: int = 993,
+        timeout: int = 20
     ):
-        self.email_address = email_address
-        self.secret = secret
+        self.email_address = email_address.strip()
+        self.secret = secret.strip()
         self.auth_type = auth_type
-        self.server = server
+        self.server = server.strip()
         self.port = port
+        self.timeout = timeout
         self.connection: Optional[imaplib.IMAP4_SSL] = None
 
     def connect(self) -> Tuple[bool, str]:
         """Establish secure SSL connection to Yahoo IMAP server and authenticate."""
         try:
-            self.connection = imaplib.IMAP4_SSL(self.server, self.port, timeout=30)
+            self.connection = imaplib.IMAP4_SSL(self.server, self.port, timeout=self.timeout)
             if self.auth_type == "oauth2":
                 # Yahoo XOAUTH2 format: user={email}\x01auth=Bearer {token}\x01\x01
                 auth_string = f"user={self.email_address}\x01auth=Bearer {self.secret}\x01\x01"
                 self.connection.authenticate('XOAUTH2', lambda x: auth_string)
             else:
-                # Yahoo App Password
+                # Yahoo App Password (strip any whitespace)
                 clean_pass = self.secret.replace(" ", "")
                 self.connection.login(self.email_address, clean_pass)
             return True, "Successfully connected to Yahoo Mail"
         except imaplib.IMAP4.error as e:
-            return False, f"Yahoo Mail IMAP authentication error: {str(e)}"
+            return False, format_imap_error(e)
         except Exception as e:
-            return False, f"Connection failed: {str(e)}"
+            return False, format_imap_error(e)
 
     def disconnect(self):
         """Safely close and logout from IMAP connection."""

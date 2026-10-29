@@ -471,6 +471,9 @@
     let currentSelectedOrder = null;
     let searchTimeout = null;
 
+    // Support both direct http://localhost:8000 serving and file:/// local execution
+    const API_BASE = (window.location.protocol === 'file:' || !window.location.host) ? 'http://localhost:8000' : '';
+
     function applyTranslations() {
       const dict = i18n[currentLanguage];
       document.querySelectorAll("[data-i18n]").forEach(el => {
@@ -509,7 +512,7 @@
 
     async function fetchMetrics() {
       try {
-        const res = await fetch("/api/v1/orders/metrics");
+        const res = await fetch(`${API_BASE}/api/v1/orders/metrics`);
         if (res.ok) {
           const m = await res.json();
           document.getElementById("statTotalOrders").textContent = m.total_orders;
@@ -526,7 +529,7 @@
       const search = document.getElementById("searchInput").value;
       const status = document.getElementById("statusFilter").value;
 
-      let url = "/api/v1/orders?";
+      let url = `${API_BASE}/api/v1/orders?`;
       if (search) url += `search=${encodeURIComponent(search)}&`;
       if (status && status !== "ALL") url += `status=${encodeURIComponent(status)}&`;
 
@@ -607,7 +610,7 @@
       btn.disabled = true;
 
       try {
-        const res = await fetch("/api/v1/sync/trigger", {
+        const res = await fetch(`${API_BASE}/api/v1/sync/trigger`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({max_emails: 30})
@@ -630,7 +633,7 @@
 
     async function simulateSampleIngest() {
       try {
-        const res = await fetch("/api/v1/orders/simulate-ingest", {method: "POST"});
+        const res = await fetch(`${API_BASE}/api/v1/orders/simulate-ingest`, {method: "POST"});
         if (res.ok) {
           const ord = await res.json();
           showToast(`Ingested sample: PO ${ord.po_number} / Booking ${ord.booking_number}`);
@@ -644,7 +647,7 @@
 
     function exportData(format) {
       const status = document.getElementById("statusFilter").value;
-      const url = `/api/v1/export/${format}?status=${encodeURIComponent(status)}`;
+      const url = `${API_BASE}/api/v1/export/${format}?status=${encodeURIComponent(status)}`;
       window.open(url, "_blank");
     }
 
@@ -695,7 +698,7 @@
       const attList = document.getElementById("modalAttachmentsList");
       if (ord.attachments && ord.attachments.length > 0) {
         attList.innerHTML = ord.attachments.map(att => `
-          <a href="/api/v1/attachments/${att.id}/download" target="_blank" class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 transition">
+          <a href="${API_BASE}/api/v1/attachments/${att.id}/download" target="_blank" class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 transition">
             <div class="flex items-center space-x-2 truncate">
               <i class="fa-solid fa-paperclip text-purple-600"></i>
               <span class="truncate">${att.file_name}</span>
@@ -727,7 +730,7 @@
       };
 
       try {
-        const res = await fetch(`/api/v1/orders/${currentSelectedOrder.id}`, {
+        const res = await fetch(`${API_BASE}/api/v1/orders/${currentSelectedOrder.id}`, {
           method: "PUT",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify(payload)
@@ -746,7 +749,7 @@
     async function deleteCurrentOrder() {
       if (!currentSelectedOrder || !confirm("Are you sure you want to delete this order?")) return;
       try {
-        const res = await fetch(`/api/v1/orders/${currentSelectedOrder.id}`, {method: "DELETE"});
+        const res = await fetch(`${API_BASE}/api/v1/orders/${currentSelectedOrder.id}`, {method: "DELETE"});
         if (res.ok) {
           showToast("Order deleted.");
           closeDetailModal();
@@ -767,10 +770,12 @@
     }
 
     async function testYahooConnection() {
-      const email = document.getElementById("inputYahooEmail").value;
-      const secret = document.getElementById("inputSecret").value;
+      const emailInput = document.getElementById("inputYahooEmail");
+      let email = emailInput.value.trim();
+      const secret = document.getElementById("inputSecret").value.trim();
       const authType = document.getElementById("selectAuthType").value;
       const alertBox = document.getElementById("testConnectionAlert");
+      const btn = document.getElementById("btnTestConn");
 
       if (!email || !secret) {
         alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
@@ -779,66 +784,100 @@
         return;
       }
 
+      // Check common typos like user typing .co instead of .com
+      if (email.endsWith("@yahoo.co")) {
+        email = email + "m";
+        emailInput.value = email;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin text-amber-500"></i> <span>Testing...</span>`;
+
       alertBox.className = "p-3 rounded-lg text-xs bg-blue-50 text-blue-700 border border-blue-200";
-      alertBox.textContent = "Testing connection to Yahoo IMAP server...";
+      alertBox.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1.5"></i> Connecting to Yahoo Mail (imap.mail.yahoo.com:993)... Please wait.`;
       alertBox.classList.remove("hidden");
 
       try {
-        const res = await fetch("/api/v1/accounts/test-connection", {
+        const res = await fetch(`${API_BASE}/api/v1/accounts/test-connection`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
             email: email,
             auth_type: authType,
             password_or_token: secret,
-            imap_server: document.getElementById("inputImapServer").value,
+            imap_server: document.getElementById("inputImapServer").value.trim(),
             imap_port: parseInt(document.getElementById("inputImapPort").value) || 993
           })
         });
         const data = await res.json();
-        if (data.success) {
+        if (res.ok && data.success) {
           alertBox.className = "p-3 rounded-lg text-xs bg-emerald-50 text-emerald-700 border border-emerald-200";
-          alertBox.textContent = data.message;
+          alertBox.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-600 mr-1.5"></i> ${data.message}`;
         } else {
           alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
-          alertBox.textContent = data.message;
+          const errMsg = data.message || data.detail || "Yahoo authentication failed. Check email & password.";
+          alertBox.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-rose-600 mr-1.5"></i> ${errMsg}`;
         }
       } catch (e) {
         alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
-        alertBox.textContent = "Failed to contact backend server.";
+        alertBox.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-600 mr-1.5"></i> Could not reach backend server at <strong>${API_BASE || window.location.origin}</strong>. Please verify the server is running on port 8000.`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<i class="fa-solid fa-bolt text-amber-500"></i> <span data-i18n="btn_test_conn">${i18n[currentLanguage].btn_test_conn || 'Test Connection'}</span>`;
       }
     }
 
     async function saveYahooAccount() {
-      const email = document.getElementById("inputYahooEmail").value;
-      const secret = document.getElementById("inputSecret").value;
+      const emailInput = document.getElementById("inputYahooEmail");
+      let email = emailInput.value.trim();
+      const secret = document.getElementById("inputSecret").value.trim();
       const authType = document.getElementById("selectAuthType").value;
+      const alertBox = document.getElementById("testConnectionAlert");
+      const btn = document.getElementById("btnSaveConn");
 
       if (!email || !secret) {
-        alert("Please enter both Yahoo Email and App Password / Token.");
+        alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+        alertBox.textContent = "Please enter both Yahoo Email and App Password / Token.";
+        alertBox.classList.remove("hidden");
         return;
       }
 
+      if (email.endsWith("@yahoo.co")) {
+        email = email + "m";
+        emailInput.value = email;
+      }
+
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Saving...`;
+
       try {
-        const res = await fetch("/api/v1/accounts/setup", {
+        const res = await fetch(`${API_BASE}/api/v1/accounts/setup`, {
           method: "POST",
           headers: {"Content-Type": "application/json"},
           body: JSON.stringify({
             email: email,
             auth_type: authType,
             password_or_token: secret,
-            imap_server: document.getElementById("inputImapServer").value,
+            imap_server: document.getElementById("inputImapServer").value.trim(),
             imap_port: parseInt(document.getElementById("inputImapPort").value) || 993
           })
         });
+        const data = await res.json();
         if (res.ok) {
-          showToast("Yahoo Mail account credentials securely saved!");
+          showToast("Yahoo Mail account credentials securely saved & connected!");
           closeAccountModal();
         } else {
-          showToast("Failed to save credentials.", true);
+          alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+          alertBox.textContent = data.detail || "Failed to save credentials.";
+          alertBox.classList.remove("hidden");
         }
       } catch (e) {
-        showToast("Error communicating with server.", true);
+        alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+        alertBox.textContent = "Error communicating with backend server.";
+        alertBox.classList.remove("hidden");
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<span data-i18n="btn_save_connect">${i18n[currentLanguage].btn_save_connect || 'Save & Connect'}</span>`;
       }
     }
 
