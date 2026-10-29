@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yahoo Mail Order Management & Intelligent Extraction</title>
+  <!-- Tailwind CSS & Lucide Icons -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#f0f5ff',
+              100: '#e0ebff',
+              500: '#2563eb',
+              600: '#1d4ed8',
+              700: '#1e40af',
+              800: '#1e3a8a',
+              900: '#172554'
+            },
+            yahoo: {
+              purple: '#6001d2',
+              hover: '#5001b0'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Hind+Siliguri:wght@400;500;600;700&display=swap');
+    body {
+      font-family: 'Inter', 'Hind Siliguri', sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased min-h-screen flex flex-col">
+
+  <!-- Top Navigation Bar -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 rounded-xl bg-purple-700 flex items-center justify-center text-white font-bold text-xl shadow-md shadow-purple-200">
+          <i class="fa-brands fa-yahoo"></i>
+        </div>
+        <div>
+          <h1 class="text-base sm:text-lg font-bold text-slate-900 leading-tight" data-i18n="app_title">Yahoo Mail Order Extraction</h1>
+          <p class="text-xs text-slate-500 font-medium" data-i18n="app_subtitle">Automated Intelligent Extraction & Dashboard</p>
+        </div>
+      </div>
+
+      <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Language Switcher Toggle -->
+        <button id="langToggleBtn" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition flex items-center space-x-1">
+          <i class="fa-solid fa-language text-purple-700"></i>
+          <span id="currentLangLabel">বাংলা</span>
+        </button>
+
+        <!-- Download Android APK -->
+        <a href="/static/YahooOrderManager.apk" download="YahooOrderManager.apk" class="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition items-center space-x-1.5 shadow-sm">
+          <i class="fa-brands fa-android text-emerald-400"></i>
+          <span data-i18n="download_apk">Download APK</span>
+        </a>
+
+        <!-- Quick Demo Ingest -->
+        <button onclick="simulateSampleIngest()" title="Ingest primary sample email" class="hidden sm:inline-flex px-3 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs font-semibold transition items-center space-x-1.5">
+          <i class="fa-solid fa-flask"></i>
+          <span data-i18n="test_sample">Test Sample Order</span>
+        </button>
+
+        <!-- Sync Now Button -->
+        <button id="syncNowBtn" onclick="triggerManualSync()" class="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition shadow-sm flex items-center space-x-1.5">
+          <i id="syncIcon" class="fa-solid fa-arrows-rotate"></i>
+          <span data-i18n="sync_now">Sync Now</span>
+        </button>
+
+        <!-- Yahoo Account Settings Modal Trigger -->
+        <button onclick="openAccountModal()" class="px-3 py-1.5 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition flex items-center space-x-1.5">
+          <i class="fa-solid fa-gear"></i>
+          <span class="hidden md:inline" data-i18n="mail_settings">Mail Settings</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+
+    <!-- KPI Metric Cards Grid -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-file-invoice"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-500" data-i18n="metric_total_orders">Total Orders</p>
+          <h3 id="statTotalOrders" class="text-2xl font-bold text-slate-900">0</h3>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-circle-check"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-500" data-i18n="metric_confirmed">Confirmed</p>
+          <h3 id="statConfirmed" class="text-2xl font-bold text-slate-900">0</h3>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-triangle-exclamation"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-500" data-i18n="metric_review_needed">Review Needed</p>
+          <h3 id="statReview" class="text-2xl font-bold text-slate-900">0</h3>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 border border-slate-200 shadow-xs flex items-center space-x-4">
+        <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center text-xl">
+          <i class="fa-solid fa-cubes-stacked"></i>
+        </div>
+        <div>
+          <p class="text-xs font-medium text-slate-500" data-i18n="metric_total_quantity">Total Units</p>
+          <h3 id="statTotalQuantity" class="text-2xl font-bold text-slate-900">0</h3>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter and Search Toolbar -->
+    <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
+      <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
+        
+        <!-- Search Input -->
+        <div class="relative w-full md:w-80">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input type="text" id="searchInput" oninput="debounceSearch()" placeholder="Search PO, Booking, Buyer..." class="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-600 focus:bg-white transition" />
+        </div>
+
+        <!-- Filter Controls & Export Buttons -->
+        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <!-- Status Filter -->
+          <select id="statusFilter" onchange="fetchOrders()" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-600">
+            <option value="ALL" data-i18n="filter_all">All Statuses</option>
+            <option value="CONFIRMED" data-i18n="status_confirmed">Confirmed</option>
+            <option value="REVIEW_NEEDED" data-i18n="status_review">Review Needed</option>
+            <option value="DUPLICATE" data-i18n="status_duplicate">Duplicate</option>
+          </select>
+
+          <!-- Export Excel -->
+          <button onclick="exportData('excel')" class="px-3 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs">
+            <i class="fa-solid fa-file-excel"></i>
+            <span data-i18n="btn_export_excel">Export Excel</span>
+          </button>
+
+          <!-- Export CSV -->
+          <button onclick="exportData('csv')" class="px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold transition flex items-center space-x-1.5">
+            <i class="fa-solid fa-file-csv text-blue-600"></i>
+            <span data-i18n="btn_export_csv">Export CSV</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Orders Table Container -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="bg-slate-50 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+              <th class="py-3 px-4" data-i18n="th_po_number">PO Number</th>
+              <th class="py-3 px-4" data-i18n="th_booking_number">Booking Number</th>
+              <th class="py-3 px-4" data-i18n="th_buyer">Buyer</th>
+              <th class="py-3 px-4" data-i18n="th_order_type">Order Type</th>
+              <th class="py-3 px-4 text-right" data-i18n="th_quantity">Quantity</th>
+              <th class="py-3 px-4 text-right" data-i18n="th_amount">Amount</th>
+              <th class="py-3 px-4 text-center" data-i18n="th_confidence">Confidence</th>
+              <th class="py-3 px-4 text-center" data-i18n="th_status">Status</th>
+              <th class="py-3 px-4 text-right" data-i18n="th_actions">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersTableBody" class="divide-y divide-slate-100 text-xs font-medium text-slate-700">
+            <!-- Dynamic rows will render here -->
+            <tr>
+              <td colspan="9" class="py-12 text-center text-slate-400">
+                <i class="fa-solid fa-spinner fa-spin text-2xl mb-2 text-purple-600"></i>
+                <p data-i18n="loading_orders">Loading extracted orders...</p>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Order Detail & Inspection Modal -->
+  <div id="orderDetailModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
+        <div>
+          <h3 id="modalOrderTitle" class="text-base font-bold text-slate-900">Order Details</h3>
+          <p id="modalOrderSubtitle" class="text-xs text-slate-500">PO & Booking Reference Inspection</p>
+        </div>
+        <button onclick="closeDetailModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="p-6 space-y-6 flex-1">
+        <!-- Email Source Card -->
+        <div class="bg-purple-50/60 rounded-xl p-4 border border-purple-100 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700" data-i18n="modal_email_source">Source Yahoo Email</span>
+            <span id="modalEmailDate" class="text-xs text-slate-500"></span>
+          </div>
+          <p id="modalEmailSubject" class="text-sm font-semibold text-slate-800"></p>
+          <p id="modalEmailSender" class="text-xs text-slate-600"></p>
+        </div>
+
+        <!-- Editable Form Fields -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_po_number">PO Number</label>
+            <input type="text" id="editPoNumber" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_booking_number">Booking Number</label>
+            <input type="text" id="editBookingNumber" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_buyer">Buyer</label>
+            <input type="text" id="editBuyer" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_order_type">Order Type</label>
+            <input type="text" id="editOrderType" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_quantity">Total Quantity</label>
+            <input type="number" id="editQuantity" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_status">Status</label>
+            <select id="editStatus" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none">
+              <option value="CONFIRMED">CONFIRMED</option>
+              <option value="REVIEW_NEEDED">REVIEW_NEEDED</option>
+              <option value="DUPLICATE">DUPLICATE</option>
+              <option value="CANCELLED">CANCELLED</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Line Items Table -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-900 mb-2 uppercase tracking-wider" data-i18n="modal_items_breakdown">Extracted Line Items</h4>
+          <div class="border border-slate-200 rounded-xl overflow-hidden">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-50 border-b border-slate-200 text-slate-600">
+                <tr>
+                  <th class="p-2.5">Item / Code</th>
+                  <th class="p-2.5">Description</th>
+                  <th class="p-2.5">Color / Size</th>
+                  <th class="p-2.5 text-right">Quantity</th>
+                  <th class="p-2.5 text-right">Rate</th>
+                  <th class="p-2.5 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody id="modalItemsTableBody" class="divide-y divide-slate-100">
+                <!-- Items list -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Attachments Section -->
+        <div>
+          <h4 class="text-xs font-bold text-slate-900 mb-2 uppercase tracking-wider" data-i18n="modal_attachments">Attachments (PDF, Excel, Word, CSV)</h4>
+          <div id="modalAttachmentsList" class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <!-- Attachment pills -->
+          </div>
+        </div>
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <button onclick="deleteCurrentOrder()" class="px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition" data-i18n="btn_delete_order">Delete Order</button>
+        <div class="flex space-x-2">
+          <button onclick="closeDetailModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold" data-i18n="btn_cancel">Cancel</button>
+          <button onclick="saveOrderEdits()" class="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition shadow-xs" data-i18n="btn_save_changes">Save Changes</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Yahoo Account Setup Modal -->
+  <div id="accountSetupModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-8 h-8 rounded-lg bg-purple-700 text-white flex items-center justify-center font-bold">
+            <i class="fa-brands fa-yahoo"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900" data-i18n="modal_yahoo_title">Yahoo Mail Connection</h3>
+            <p class="text-xs text-slate-500" data-i18n="modal_yahoo_subtitle">Secure authorized connection (OAuth / App Password)</p>
+          </div>
+        </div>
+        <button onclick="closeAccountModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" data-i18n="label_yahoo_email">Yahoo Email Address</label>
+          <input type="email" id="inputYahooEmail" placeholder="e.g. orders.management@yahoo.com" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" data-i18n="label_auth_type">Authentication Method</label>
+          <select id="selectAuthType" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none">
+            <option value="app_password">Yahoo App Password (Recommended)</option>
+            <option value="oauth2">OAuth 2.0 Bearer Token</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block font-semibold text-slate-700 mb-1" data-i18n="label_secret">App Password / Token</label>
+          <input type="password" id="inputSecret" placeholder="•••• •••• •••• ••••" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          <p class="text-[11px] text-slate-400 mt-1" data-i18n="help_app_password">
+            Generate an App Password from: <a href="https://login.yahoo.com/account/security" target="_blank" class="text-purple-600 underline">Yahoo Security Settings</a>
+          </p>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">IMAP Server</label>
+            <input type="text" id="inputImapServer" value="imap.mail.yahoo.com" class="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-600" />
+          </div>
+          <div>
+            <label class="block font-semibold text-slate-700 mb-1">Port</label>
+            <input type="number" id="inputImapPort" value="993" class="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-600" />
+          </div>
+        </div>
+
+        <div id="testConnectionAlert" class="hidden p-3 rounded-lg text-xs"></div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-200 flex items-center justify-between">
+        <button id="btnTestConn" onclick="testYahooConnection()" class="px-3 py-2 rounded-lg border border-slate-300 hover:bg-slate-100 text-slate-700 text-xs font-semibold flex items-center space-x-1.5">
+          <i class="fa-solid fa-bolt text-amber-500"></i>
+          <span data-i18n="btn_test_conn">Test Connection</span>
+        </button>
+        <button id="btnSaveConn" onclick="saveYahooAccount()" class="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold shadow-xs" data-i18n="btn_save_connect">Save & Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 text-xs font-semibold">
+    <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
+    <span id="toastMessage">Success</span>
+  </div>
+
+  <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-400">
+    <p>Yahoo Mail Order Extraction & Management System • Enterprise Production Engine</p>
+  </footer>
+
+  <!-- Application Logic & i18n Dictionary -->
+  <script>
+    // Bilingual Dictionaries: English and Bengali (বাংলা)
+    const i18n = {
+      en: {
+        app_title: "Yahoo Mail Order Extraction",
+        app_subtitle: "Automated Intelligent Extraction & Dashboard",
+        download_apk: "Android APK",
+        sync_now: "Sync Now",
+        mail_settings: "Mail Settings",
+        test_sample: "Test Sample Order",
+        metric_total_orders: "Total Orders",
+        metric_confirmed: "Confirmed",
+        metric_review_needed: "Review Needed",
+        metric_total_quantity: "Total Units",
+        filter_all: "All Statuses",
+        status_confirmed: "Confirmed",
+        status_review: "Review Needed",
+        status_duplicate: "Duplicate",
+        btn_export_excel: "Export Excel",
+        btn_export_csv: "Export CSV",
+        th_po_number: "PO Number",
+        th_booking_number: "Booking Number",
+        th_buyer: "Buyer",
+        th_order_type: "Order Type",
+        th_quantity: "Quantity",
+        th_amount: "Amount",
+        th_confidence: "Confidence",
+        th_status: "Status",
+        th_actions: "Actions",
+        loading_orders: "Loading extracted orders...",
+        modal_email_source: "Source Yahoo Email",
+        modal_items_breakdown: "Extracted Line Items",
+        modal_attachments: "Attachments (PDF, Excel, Word, CSV)",
+        btn_delete_order: "Delete Order",
+        btn_cancel: "Cancel",
+        btn_save_changes: "Save Changes",
+        modal_yahoo_title: "Yahoo Mail Connection",
+        modal_yahoo_subtitle: "Secure authorized connection (OAuth / App Password)",
+        label_yahoo_email: "Yahoo Email Address",
+        label_auth_type: "Authentication Method",
+        label_secret: "App Password / Token",
+        help_app_password: "Generate an App Password from: Yahoo Security Settings",
+        btn_test_conn: "Test Connection",
+        btn_save_connect: "Save & Connect"
+      },
+      bn: {
+        app_title: "ইয়াহু মেইল অর্ডার এক্সট্রাকশন",
+        app_subtitle: "স্বয়ংক্রিয় বুদ্ধিমান নিষ্কাশন ও ড্যাশবোর্ড",
+        download_apk: "অ্যান্ড্রয়েড APK",
+        sync_now: "এখন সিঙ্ক করুন",
+        mail_settings: "মেইল সেটিংস",
+        test_sample: "নমুনা অর্ডার পরীক্ষা",
+        metric_total_orders: "মোট অর্ডার",
+        metric_confirmed: "নিশ্চিত অর্ডার",
+        metric_review_needed: "পর্যালোচনা প্রয়োজন",
+        metric_total_quantity: "মোট পরিমাণ",
+        filter_all: "সকল স্ট্যাটাস",
+        status_confirmed: "নিশ্চিত (Confirmed)",
+        status_review: "পর্যালোচনা প্রয়োজন",
+        status_duplicate: "অনুরূপ (Duplicate)",
+        btn_export_excel: "এক্সেল এক্সপোর্ট",
+        btn_export_csv: "সিএসভি এক্সপোর্ট",
+        th_po_number: "পিও নম্বর (PO)",
+        th_booking_number: "বুকিং নম্বর",
+        th_buyer: "ক্রেতা (Buyer)",
+        th_order_type: "অর্ডারের ধরন",
+        th_quantity: "পরিমাণ",
+        th_amount: "মোট মূল্য",
+        th_confidence: "নির্ভুলতা স্কোর",
+        th_status: "স্ট্যাটাস",
+        th_actions: "পদক্ষেপ",
+        loading_orders: "অর্ডার লোড হচ্ছে...",
+        modal_email_source: "মূল ইয়াহু ইমেইল",
+        modal_items_breakdown: "অর্ডার পণ্যের বিবরণ (Line Items)",
+        modal_attachments: "সংযুক্তি ফাইল (PDF, Excel, Word, CSV)",
+        btn_delete_order: "অর্ডার মুছুন",
+        btn_cancel: "বাতিল",
+        btn_save_changes: "পরিবর্তন সংরক্ষণ করুন",
+        modal_yahoo_title: "ইয়াহু মেইল সংযোগ",
+        modal_yahoo_subtitle: "নিরাপদ সংযোগ (OAuth / অ্যাপ পাসওয়ার্ড)",
+        label_yahoo_email: "ইয়াহু ইমেইল ঠিকানা",
+        label_auth_type: "অনুমোদন পদ্ধতি",
+        label_secret: "অ্যাপ পাসওয়ার্ড / টোকেন",
+        help_app_password: "অ্যাপ পাসওয়ার্ড তৈরি করুন: ইয়াহু সিকিউরিটি সেটিংস থেকে",
+        btn_test_conn: "সংযোগ পরীক্ষা",
+        btn_save_connect: "সংরক্ষণ ও সংযোগ করুন"
+      }
+    };
+
+    let currentLanguage = localStorage.getItem("order_mgr_lang") || "en";
+    let ordersData = [];
+    let currentSelectedOrder = null;
+    let searchTimeout = null;
+
+    function applyTranslations() {
+      const dict = i18n[currentLanguage];
+      document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (dict[key]) {
+          el.textContent = dict[key];
+        }
+      });
+      document.getElementById("currentLangLabel").textContent = currentLanguage === "en" ? "বাংলা" : "English";
+    }
+
+    function toggleLanguage() {
+      currentLanguage = currentLanguage === "en" ? "bn" : "en";
+      localStorage.setItem("order_mgr_lang", currentLanguage);
+      applyTranslations();
+      renderOrdersTable(ordersData);
+    }
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById("toastNotification");
+      const icon = document.getElementById("toastIcon");
+      const msg = document.getElementById("toastMessage");
+
+      msg.textContent = message;
+      if (isError) {
+        icon.className = "fa-solid fa-circle-exclamation text-rose-400 text-base";
+      } else {
+        icon.className = "fa-solid fa-circle-check text-emerald-400 text-base";
+      }
+
+      toast.classList.remove("translate-y-16", "opacity-0", "pointer-events-none");
+      setTimeout(() => {
+        toast.classList.add("translate-y-16", "opacity-0", "pointer-events-none");
+      }, 3500);
+    }
+
+    async function fetchMetrics() {
+      try {
+        const res = await fetch("/api/v1/orders/metrics");
+        if (res.ok) {
+          const m = await res.json();
+          document.getElementById("statTotalOrders").textContent = m.total_orders;
+          document.getElementById("statConfirmed").textContent = m.confirmed_orders;
+          document.getElementById("statReview").textContent = m.review_needed;
+          document.getElementById("statTotalQuantity").textContent = Number(m.total_quantity).toLocaleString();
+        }
+      } catch (e) {
+        console.error("Error fetching metrics:", e);
+      }
+    }
+
+    async function fetchOrders() {
+      const search = document.getElementById("searchInput").value;
+      const status = document.getElementById("statusFilter").value;
+
+      let url = "/api/v1/orders?";
+      if (search) url += `search=${encodeURIComponent(search)}&`;
+      if (status && status !== "ALL") url += `status=${encodeURIComponent(status)}&`;
+
+      try {
+        const res = await fetch(url);
+        if (res.ok) {
+          ordersData = await res.json();
+          renderOrdersTable(ordersData);
+        }
+      } catch (e) {
+        console.error("Error fetching orders:", e);
+      }
+    }
+
+    function debounceSearch() {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        fetchOrders();
+      }, 300);
+    }
+
+    function renderOrdersTable(orders) {
+      const tbody = document.getElementById("ordersTableBody");
+      if (!orders || orders.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="9" class="py-12 text-center text-slate-400">
+              <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-300"></i>
+              <p>No orders found. Connect Yahoo Mail or click "Test Sample Order".</p>
+            </td>
+          </tr>
+        `;
+        return;
+      }
+
+      tbody.innerHTML = orders.map(ord => {
+        // Status Badge Style
+        let statusBadge = "";
+        if (ord.status === "CONFIRMED") {
+          statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800"><i class="fa-solid fa-check mr-1"></i>CONFIRMED</span>`;
+        } else if (ord.status === "REVIEW_NEEDED") {
+          statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800"><i class="fa-solid fa-triangle-exclamation mr-1"></i>REVIEW</span>`;
+        } else if (ord.status === "DUPLICATE") {
+          statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700"><i class="fa-solid fa-copy mr-1"></i>DUPLICATE</span>`;
+        } else {
+          statusBadge = `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">${ord.status}</span>`;
+        }
+
+        const scorePercent = Math.round((ord.confidence_score || 0) * 100);
+        let scoreColor = scorePercent >= 80 ? "text-emerald-600 bg-emerald-50" : (scorePercent >= 60 ? "text-amber-600 bg-amber-50" : "text-rose-600 bg-rose-50");
+
+        return `
+          <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="openDetailModal(${ord.id})">
+            <td class="py-3 px-4 font-semibold text-purple-700">${ord.po_number || '<span class="text-slate-400 italic">N/A</span>'}</td>
+            <td class="py-3 px-4 font-medium text-slate-900">${ord.booking_number || '<span class="text-slate-400 italic">N/A</span>'}</td>
+            <td class="py-3 px-4 font-semibold text-slate-800">${ord.buyer_name || '<span class="text-slate-400 italic">Unknown</span>'}</td>
+            <td class="py-3 px-4 text-slate-600">${ord.order_type || 'Booking'}</td>
+            <td class="py-3 px-4 text-right font-semibold text-slate-900">${Number(ord.total_quantity).toLocaleString()} <span class="text-[10px] text-slate-500 font-normal">${ord.quantity_unit}</span></td>
+            <td class="py-3 px-4 text-right font-semibold text-slate-900">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="py-3 px-4 text-center">
+              <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px] ${scoreColor}">${scorePercent}%</span>
+            </td>
+            <td class="py-3 px-4 text-center">${statusBadge}</td>
+            <td class="py-3 px-4 text-right space-x-1" onclick="event.stopPropagation()">
+              <button onclick="openDetailModal(${ord.id})" title="Inspect" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition">
+                <i class="fa-solid fa-eye"></i>
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join("");
+    }
+
+    async function triggerManualSync() {
+      const btn = document.getElementById("syncNowBtn");
+      const icon = document.getElementById("syncIcon");
+      icon.classList.add("fa-spin");
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("/api/v1/sync/trigger", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({max_emails: 30})
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast("Yahoo Mail sync completed successfully!");
+          await fetchMetrics();
+          await fetchOrders();
+        } else {
+          showToast(data.detail || "Sync failed. Check settings.", true);
+        }
+      } catch (e) {
+        showToast("Error connecting to backend.", true);
+      } finally {
+        icon.classList.remove("fa-spin");
+        btn.disabled = false;
+      }
+    }
+
+    async function simulateSampleIngest() {
+      try {
+        const res = await fetch("/api/v1/orders/simulate-ingest", {method: "POST"});
+        if (res.ok) {
+          const ord = await res.json();
+          showToast(`Ingested sample: PO ${ord.po_number} / Booking ${ord.booking_number}`);
+          await fetchMetrics();
+          await fetchOrders();
+        }
+      } catch (e) {
+        showToast("Simulation error.", true);
+      }
+    }
+
+    function exportData(format) {
+      const status = document.getElementById("statusFilter").value;
+      const url = `/api/v1/export/${format}?status=${encodeURIComponent(status)}`;
+      window.open(url, "_blank");
+    }
+
+    // Detail Modal Functions
+    function openDetailModal(orderId) {
+      const ord = ordersData.find(o => o.id === orderId);
+      if (!ord) return;
+      currentSelectedOrder = ord;
+
+      document.getElementById("modalOrderTitle").textContent = `Order #${ord.id} - ${ord.po_number || 'No PO'}`;
+      document.getElementById("modalOrderSubtitle").textContent = `${ord.order_type || 'Order'} • ${ord.buyer_name || 'Buyer'}`;
+
+      if (ord.raw_email) {
+        document.getElementById("modalEmailSubject").textContent = ord.raw_email.subject || "No Subject";
+        document.getElementById("modalEmailSender").textContent = `From: ${ord.raw_email.sender || 'Unknown'}`;
+        document.getElementById("modalEmailDate").textContent = new Date(ord.raw_email.date_received).toLocaleString();
+      } else {
+        document.getElementById("modalEmailSubject").textContent = "Direct / Simulated Ingestion";
+        document.getElementById("modalEmailSender").textContent = "Source: System";
+        document.getElementById("modalEmailDate").textContent = new Date(ord.created_at).toLocaleString();
+      }
+
+      document.getElementById("editPoNumber").value = ord.po_number || "";
+      document.getElementById("editBookingNumber").value = ord.booking_number || "";
+      document.getElementById("editBuyer").value = ord.buyer_name || "";
+      document.getElementById("editOrderType").value = ord.order_type || "";
+      document.getElementById("editQuantity").value = ord.total_quantity || 0;
+      document.getElementById("editStatus").value = ord.status;
+
+      // Line items
+      const itemsBody = document.getElementById("modalItemsTableBody");
+      if (ord.items && ord.items.length > 0) {
+        itemsBody.innerHTML = ord.items.map(it => `
+          <tr class="hover:bg-slate-50">
+            <td class="p-2.5 font-semibold text-purple-700">${it.item_code || 'ITEM'}</td>
+            <td class="p-2.5">${it.description || ''}</td>
+            <td class="p-2.5 text-slate-500">${it.color || '-'} / ${it.size || '-'}</td>
+            <td class="p-2.5 text-right font-medium">${Number(it.quantity).toLocaleString()} ${it.unit}</td>
+            <td class="p-2.5 text-right">${ord.currency} ${Number(it.unit_price).toFixed(2)}</td>
+            <td class="p-2.5 text-right font-semibold">${ord.currency} ${Number(it.total_price).toFixed(2)}</td>
+          </tr>
+        `).join("");
+      } else {
+        itemsBody.innerHTML = `<tr><td colspan="6" class="p-3 text-center text-slate-400">No individual line items parsed.</td></tr>`;
+      }
+
+      // Attachments
+      const attList = document.getElementById("modalAttachmentsList");
+      if (ord.attachments && ord.attachments.length > 0) {
+        attList.innerHTML = ord.attachments.map(att => `
+          <a href="/api/v1/attachments/${att.id}/download" target="_blank" class="p-2.5 bg-slate-50 border border-slate-200 rounded-xl hover:bg-slate-100 flex items-center justify-between text-xs font-semibold text-slate-700 transition">
+            <div class="flex items-center space-x-2 truncate">
+              <i class="fa-solid fa-paperclip text-purple-600"></i>
+              <span class="truncate">${att.file_name}</span>
+            </div>
+            <i class="fa-solid fa-download text-slate-400 ml-2"></i>
+          </a>
+        `).join("");
+      } else {
+        attList.innerHTML = `<p class="text-xs text-slate-400 col-span-2">No attachments associated with this order.</p>`;
+      }
+
+      document.getElementById("orderDetailModal").classList.remove("hidden");
+    }
+
+    function closeDetailModal() {
+      document.getElementById("orderDetailModal").classList.add("hidden");
+      currentSelectedOrder = null;
+    }
+
+    async function saveOrderEdits() {
+      if (!currentSelectedOrder) return;
+      const payload = {
+        po_number: document.getElementById("editPoNumber").value,
+        booking_number: document.getElementById("editBookingNumber").value,
+        buyer_name: document.getElementById("editBuyer").value,
+        order_type: document.getElementById("editOrderType").value,
+        total_quantity: parseFloat(document.getElementById("editQuantity").value) || 0,
+        status: document.getElementById("editStatus").value
+      };
+
+      try {
+        const res = await fetch(`/api/v1/orders/${currentSelectedOrder.id}`, {
+          method: "PUT",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify(payload)
+        });
+        if (res.ok) {
+          showToast("Order updated successfully!");
+          closeDetailModal();
+          await fetchMetrics();
+          await fetchOrders();
+        }
+      } catch (e) {
+        showToast("Error updating order.", true);
+      }
+    }
+
+    async function deleteCurrentOrder() {
+      if (!currentSelectedOrder || !confirm("Are you sure you want to delete this order?")) return;
+      try {
+        const res = await fetch(`/api/v1/orders/${currentSelectedOrder.id}`, {method: "DELETE"});
+        if (res.ok) {
+          showToast("Order deleted.");
+          closeDetailModal();
+          await fetchMetrics();
+          await fetchOrders();
+        }
+      } catch (e) {
+        showToast("Error deleting order.", true);
+      }
+    }
+
+    // Account Modal Functions
+    function openAccountModal() {
+      document.getElementById("accountSetupModal").classList.remove("hidden");
+    }
+    function closeAccountModal() {
+      document.getElementById("accountSetupModal").classList.add("hidden");
+    }
+
+    async function testYahooConnection() {
+      const email = document.getElementById("inputYahooEmail").value;
+      const secret = document.getElementById("inputSecret").value;
+      const authType = document.getElementById("selectAuthType").value;
+      const alertBox = document.getElementById("testConnectionAlert");
+
+      if (!email || !secret) {
+        alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+        alertBox.textContent = "Please enter both Yahoo Email and App Password / Token.";
+        alertBox.classList.remove("hidden");
+        return;
+      }
+
+      alertBox.className = "p-3 rounded-lg text-xs bg-blue-50 text-blue-700 border border-blue-200";
+      alertBox.textContent = "Testing connection to Yahoo IMAP server...";
+      alertBox.classList.remove("hidden");
+
+      try {
+        const res = await fetch("/api/v1/accounts/test-connection", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            email: email,
+            auth_type: authType,
+            password_or_token: secret,
+            imap_server: document.getElementById("inputImapServer").value,
+            imap_port: parseInt(document.getElementById("inputImapPort").value) || 993
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          alertBox.className = "p-3 rounded-lg text-xs bg-emerald-50 text-emerald-700 border border-emerald-200";
+          alertBox.textContent = data.message;
+        } else {
+          alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+          alertBox.textContent = data.message;
+        }
+      } catch (e) {
+        alertBox.className = "p-3 rounded-lg text-xs bg-rose-50 text-rose-700 border border-rose-200";
+        alertBox.textContent = "Failed to contact backend server.";
+      }
+    }
+
+    async function saveYahooAccount() {
+      const email = document.getElementById("inputYahooEmail").value;
+      const secret = document.getElementById("inputSecret").value;
+      const authType = document.getElementById("selectAuthType").value;
+
+      if (!email || !secret) {
+        alert("Please enter both Yahoo Email and App Password / Token.");
+        return;
+      }
+
+      try {
+        const res = await fetch("/api/v1/accounts/setup", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({
+            email: email,
+            auth_type: authType,
+            password_or_token: secret,
+            imap_server: document.getElementById("inputImapServer").value,
+            imap_port: parseInt(document.getElementById("inputImapPort").value) || 993
+          })
+        });
+        if (res.ok) {
+          showToast("Yahoo Mail account credentials securely saved!");
+          closeAccountModal();
+        } else {
+          showToast("Failed to save credentials.", true);
+        }
+      } catch (e) {
+        showToast("Error communicating with server.", true);
+      }
+    }
+
+    // Initialize application on page load
+    window.addEventListener("DOMContentLoaded", async () => {
+      applyTranslations();
+      await fetchMetrics();
+      await fetchOrders();
+    });
+  </script>
+</body>
+</html>

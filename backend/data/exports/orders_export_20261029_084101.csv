@@ -1,0 +1,2 @@
+﻿Order ID,PO Number,Booking Number,Buyer,Order Type,Order Date,Delivery Date,Total Quantity,Unit,Currency,Total Amount,Confidence,Status,Items Breakdown,Source Email Subject,Created At
+1,PO-2100011291,CCKL-01734/26,VDE,Elastic Booking,2026-10-29,N/A,15000.0,PCS,USD,4500.0,100%,CONFIRMED,EL-VDE-40: 10000.0 PCS @ USD 0.3; EL-VDE-25: 5000.0 PCS @ USD 0.3,Elastic booking for CCKL-01734/26& PO-2100011291 of VDE buyer,2026-10-29 08:40:58
