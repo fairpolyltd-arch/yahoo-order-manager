@@ -257,6 +257,19 @@
           </div>
           <p id="modalEmailSubject" class="text-sm font-semibold text-slate-800"></p>
           <p id="modalEmailSender" class="text-xs text-slate-600"></p>
+
+          <!-- Toggle Email Body inside Detail Modal -->
+          <div class="pt-2 border-t border-purple-100 flex items-center justify-between">
+            <button type="button" onclick="toggleDetailEmailBody()" class="text-xs font-semibold text-purple-700 hover:text-purple-900 flex items-center space-x-1.5 transition">
+              <i id="detailBodyToggleIcon" class="fa-solid fa-chevron-right text-[10px]"></i>
+              <span id="detailBodyToggleLabel" data-i18n="action_view_email">View Email Message Body</span>
+            </button>
+            <button type="button" onclick="openEmailBodyModal(currentSelectedOrder ? currentSelectedOrder.id : null)" class="text-xs text-slate-500 hover:text-purple-700 font-medium flex items-center space-x-1">
+              <i class="fa-solid fa-up-right-from-square text-[10px]"></i>
+              <span>Open in Full Viewer</span>
+            </button>
+          </div>
+          <div id="detailEmailBodySection" class="hidden mt-2 p-3 bg-white rounded-lg border border-purple-100 text-xs font-mono text-slate-700 max-h-60 overflow-y-auto whitespace-pre-wrap leading-relaxed select-text"></div>
         </div>
 
         <!-- Editable Form Fields -->
@@ -334,6 +347,61 @@
           <button onclick="closeDetailModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold" data-i18n="btn_cancel">Cancel</button>
           <button onclick="saveOrderEdits()" class="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition shadow-xs" data-i18n="btn_save_changes">Save Changes</button>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Email Message Body Viewer Modal -->
+  <div id="emailBodyModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
+        <div class="flex items-center space-x-3">
+          <div class="w-9 h-9 rounded-xl bg-purple-700 text-white flex items-center justify-center text-base shadow-sm">
+            <i class="fa-solid fa-envelope-open-text"></i>
+          </div>
+          <div>
+            <h3 class="text-base font-bold text-slate-900" data-i18n="modal_email_body_title">Original Email Message</h3>
+            <p id="emailBodyHeaderMeta" class="text-xs text-slate-500"></p>
+          </div>
+        </div>
+        <button onclick="closeEmailBodyModal()" class="w-8 h-8 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="px-6 py-3.5 bg-purple-50/50 border-b border-purple-100 space-y-1.5">
+        <div class="text-xs text-slate-600">
+          <span class="font-semibold text-slate-700">Subject:</span>
+          <span id="emailBodySubject" class="font-bold text-slate-900 ml-1"></span>
+        </div>
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-500 gap-2">
+          <div>
+            <span class="font-semibold text-slate-700">From:</span>
+            <span id="emailBodySender" class="font-medium text-slate-800 ml-1"></span>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="viewFormatToggleBtn" onclick="toggleEmailFormat()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition shadow-xs flex items-center space-x-1">
+              <i class="fa-solid fa-code text-purple-600"></i>
+              <span id="formatToggleLabel">Show Plain Text</span>
+            </button>
+            <button onclick="copyEmailBody()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition shadow-xs flex items-center space-x-1">
+              <i class="fa-solid fa-copy text-slate-500"></i>
+              <span>Copy Text</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Email Content Container -->
+      <div id="emailBodyContent" class="p-6 overflow-y-auto flex-1 bg-white text-xs leading-relaxed select-text">
+        <!-- Rendered body -->
+      </div>
+
+      <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
+        <span id="emailBodyWordCount" class="text-xs text-slate-400 font-medium"></span>
+        <button onclick="closeEmailBodyModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold">
+          Close
+        </button>
       </div>
     </div>
   </div>
@@ -448,6 +516,8 @@
         th_status: "Status",
         th_actions: "Actions",
         loading_orders: "Loading extracted orders...",
+        action_view_email: "View Email Body",
+        modal_email_body_title: "Original Email Message",
         modal_email_source: "Source Yahoo Email",
         modal_items_breakdown: "Extracted Line Items",
         modal_attachments: "Attachments (PDF, Excel, Word, CSV)",
@@ -495,6 +565,8 @@
         th_status: "স্ট্যাটাস",
         th_actions: "পদক্ষেপ",
         loading_orders: "অর্ডার লোড হচ্ছে...",
+        action_view_email: "ইমেইল বার্তা দেখুন",
+        modal_email_body_title: "মূল ইয়াহু ইমেইল বার্তা",
         modal_email_source: "মূল ইয়াহু ইমেইল",
         modal_items_breakdown: "অর্ডার পণ্যের বিবরণ (Line Items)",
         modal_attachments: "সংযুক্তি ফাইল (PDF, Excel, Word, CSV)",
@@ -743,8 +815,12 @@
               <span class="inline-block px-2 py-0.5 rounded font-bold text-[11px] ${scoreColor}">${scorePercent}%</span>
             </td>
             <td class="py-3 px-4 text-center">${statusBadge}</td>
-            <td class="py-3 px-4 text-right space-x-1" onclick="event.stopPropagation()">
-              <button onclick="openDetailModal(${ord.id})" title="Inspect" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition">
+            <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap" onclick="event.stopPropagation()">
+              <button onclick="openEmailBodyModal(${ord.id})" title="View Email Message Body" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-semibold text-xs transition inline-flex items-center space-x-1 border border-purple-200">
+                <i class="fa-solid fa-envelope-open-text"></i>
+                <span class="hidden sm:inline" data-i18n="action_view_email">Email Body</span>
+              </button>
+              <button onclick="openDetailModal(${ord.id})" title="Inspect Order Details" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 hover:text-slate-800 transition inline-flex items-center">
                 <i class="fa-solid fa-eye"></i>
               </button>
             </td>
@@ -862,7 +938,107 @@
         attList.innerHTML = `<p class="text-xs text-slate-400 col-span-2">No attachments associated with this order.</p>`;
       }
 
+      // Populate email body section in detail modal
+      const bodySection = document.getElementById("detailEmailBodySection");
+      const bodyPlain = (ord.raw_email && ord.raw_email.body_plain) ? ord.raw_email.body_plain : "";
+      bodySection.textContent = bodyPlain || "(No plain-text body content stored for this email.)";
+      bodySection.classList.add("hidden");
+      document.getElementById("detailBodyToggleIcon").className = "fa-solid fa-chevron-right text-[10px]";
+
       document.getElementById("orderDetailModal").classList.remove("hidden");
+    }
+
+    function toggleDetailEmailBody() {
+      const section = document.getElementById("detailEmailBodySection");
+      const icon = document.getElementById("detailBodyToggleIcon");
+      if (section.classList.contains("hidden")) {
+        section.classList.remove("hidden");
+        icon.className = "fa-solid fa-chevron-down text-[10px]";
+      } else {
+        section.classList.add("hidden");
+        icon.className = "fa-solid fa-chevron-right text-[10px]";
+      }
+    }
+
+    let activeEmailBodyOrder = null;
+    let currentEmailFormat = "html"; // "html" or "plain"
+
+    function openEmailBodyModal(orderId) {
+      if (!orderId && currentSelectedOrder) orderId = currentSelectedOrder.id;
+      const ord = ordersData.find(o => o.id === orderId);
+      if (!ord) return;
+      activeEmailBodyOrder = ord;
+      currentEmailFormat = "html";
+
+      document.getElementById("emailBodySubject").textContent = (ord.raw_email && ord.raw_email.subject) || "No Subject";
+      document.getElementById("emailBodySender").textContent = (ord.raw_email && ord.raw_email.sender) || "Unknown Sender";
+      
+      const emailDate = (ord.raw_email && ord.raw_email.date_received) ? new Date(ord.raw_email.date_received).toLocaleString() : new Date(ord.created_at).toLocaleString();
+      document.getElementById("emailBodyHeaderMeta").textContent = `Received: ${emailDate} • PO: ${ord.po_number || 'N/A'}`;
+
+      renderEmailBodyContent();
+      document.getElementById("emailBodyModal").classList.remove("hidden");
+    }
+
+    function closeEmailBodyModal() {
+      document.getElementById("emailBodyModal").classList.add("hidden");
+      activeEmailBodyOrder = null;
+    }
+
+    function renderEmailBodyContent() {
+      if (!activeEmailBodyOrder) return;
+      const container = document.getElementById("emailBodyContent");
+      const toggleBtnLabel = document.getElementById("formatToggleLabel");
+      const wordCount = document.getElementById("emailBodyWordCount");
+
+      const bodyHtml = (activeEmailBodyOrder.raw_email && activeEmailBodyOrder.raw_email.body_html) ? activeEmailBodyOrder.raw_email.body_html : "";
+      const bodyPlain = (activeEmailBodyOrder.raw_email && activeEmailBodyOrder.raw_email.body_plain) ? activeEmailBodyOrder.raw_email.body_plain : "";
+
+      if (currentEmailFormat === "html" && bodyHtml) {
+        toggleBtnLabel.textContent = "Show Plain Text";
+        container.innerHTML = `
+          <div class="prose prose-sm max-w-none text-slate-800 font-sans leading-relaxed overflow-x-auto">
+            ${bodyHtml}
+          </div>
+        `;
+        wordCount.textContent = `Formatted HTML View • Approx. ${bodyPlain.length} characters`;
+      } else {
+        toggleBtnLabel.textContent = "Show Formatted HTML";
+        container.innerHTML = `
+          <div class="p-4 bg-slate-50 rounded-xl border border-slate-200 font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed select-text">
+            ${escapeHtml(bodyPlain || bodyHtml || "No message body found.")}
+          </div>
+        `;
+        wordCount.textContent = `Plain Text View • ${bodyPlain.length} characters`;
+      }
+    }
+
+    function toggleEmailFormat() {
+      currentEmailFormat = currentEmailFormat === "html" ? "plain" : "html";
+      renderEmailBodyContent();
+    }
+
+    function copyEmailBody() {
+      if (!activeEmailBodyOrder) return;
+      const textToCopy = (activeEmailBodyOrder.raw_email && activeEmailBodyOrder.raw_email.body_plain) 
+        ? activeEmailBodyOrder.raw_email.body_plain 
+        : (activeEmailBodyOrder.raw_email ? activeEmailBodyOrder.raw_email.body_html : "");
+      if (textToCopy) {
+        navigator.clipboard.writeText(textToCopy);
+        showToast("Email text copied to clipboard!");
+      }
+    }
+
+    function escapeHtml(text) {
+      if (!text) return "";
+      const map = {
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;'
+      };
+      return text.replace(/[&<>"']/g, m => map[m]);
     }
 
     function closeDetailModal() {

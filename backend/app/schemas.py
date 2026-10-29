@@ -76,6 +76,8 @@ class RawEmailSummary(BaseModel):
     sender: Optional[str] = None
     subject: Optional[str] = None
     date_received: Optional[datetime.datetime] = None
+    body_plain: Optional[str] = None
+    body_html: Optional[str] = None
 
     class Config:
         from_attributes = True
