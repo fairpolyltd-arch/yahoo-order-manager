@@ -198,6 +198,12 @@
             <i class="fa-solid fa-file-csv text-blue-600"></i>
             <span data-i18n="btn_export_csv">Export CSV</span>
           </button>
+
+          <!-- Print Report -->
+          <button onclick="printOrdersReport()" class="px-3 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs">
+            <i class="fa-solid fa-print"></i>
+            <span data-i18n="btn_print">Print Report</span>
+          </button>
         </div>
       </div>
     </div>
@@ -342,7 +348,13 @@
       </div>
 
       <div class="px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between">
-        <button onclick="deleteCurrentOrder()" class="px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition" data-i18n="btn_delete_order">Delete Order</button>
+        <div class="flex items-center space-x-2">
+          <button onclick="deleteCurrentOrder()" class="px-3 py-2 rounded-lg text-rose-600 hover:bg-rose-50 text-xs font-semibold transition" data-i18n="btn_delete_order">Delete Order</button>
+          <button onclick="printSingleOrder(currentSelectedOrder ? currentSelectedOrder.id : null)" class="px-3 py-2 rounded-lg bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs">
+            <i class="fa-solid fa-print text-purple-700"></i>
+            <span data-i18n="btn_print_order">Print Order Sheet</span>
+          </button>
+        </div>
         <div class="flex space-x-2">
           <button onclick="closeDetailModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold" data-i18n="btn_cancel">Cancel</button>
           <button onclick="saveOrderEdits()" class="px-4 py-2 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition shadow-xs" data-i18n="btn_save_changes">Save Changes</button>
@@ -387,6 +399,10 @@
             <button onclick="copyEmailBody()" class="px-2.5 py-1 rounded-lg bg-white border border-slate-200 text-slate-700 font-semibold text-xs hover:bg-slate-100 transition shadow-xs flex items-center space-x-1">
               <i class="fa-solid fa-copy text-slate-500"></i>
               <span>Copy Text</span>
+            </button>
+            <button onclick="printEmailMessage()" class="px-2.5 py-1 rounded-lg bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs transition shadow-xs flex items-center space-x-1">
+              <i class="fa-solid fa-print"></i>
+              <span data-i18n="btn_print_email">Print Email</span>
             </button>
           </div>
         </div>
@@ -506,6 +522,9 @@
         status_duplicate: "Duplicate",
         btn_export_excel: "Export Excel",
         btn_export_csv: "Export CSV",
+        btn_print: "Print Report",
+        btn_print_order: "Print Order Sheet",
+        btn_print_email: "Print Email",
         th_po_number: "PO Number",
         th_booking_number: "Booking Number",
         th_buyer: "Buyer",
@@ -555,6 +574,9 @@
         status_duplicate: "অনুরূপ (Duplicate)",
         btn_export_excel: "এক্সেল এক্সপোর্ট",
         btn_export_csv: "সিএসভি এক্সপোর্ট",
+        btn_print: "প্রিন্ট রিপোর্ট",
+        btn_print_order: "অর্ডার প্রিন্ট",
+        btn_print_email: "ইমেইল প্রিন্ট",
         th_po_number: "পিও নম্বর (PO)",
         th_booking_number: "বুকিং নম্বর",
         th_buyer: "ক্রেতা (Buyer)",
@@ -816,6 +838,9 @@
             </td>
             <td class="py-3 px-4 text-center">${statusBadge}</td>
             <td class="py-3 px-4 text-right space-x-1.5 whitespace-nowrap" onclick="event.stopPropagation()">
+              <button onclick="printSingleOrder(${ord.id})" title="Print Order Sheet" class="p-1.5 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 border border-purple-200 transition inline-flex items-center">
+                <i class="fa-solid fa-print"></i>
+              </button>
               <button onclick="openEmailBodyModal(${ord.id})" title="View Email Message Body" class="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-purple-700 hover:text-purple-900 font-semibold text-xs transition inline-flex items-center space-x-1 border border-purple-200">
                 <i class="fa-solid fa-envelope-open-text"></i>
                 <span class="hidden sm:inline" data-i18n="action_view_email">Email Body</span>
@@ -1039,6 +1064,338 @@
         "'": '&#039;'
       };
       return text.replace(/[&<>"']/g, m => map[m]);
+    }
+
+    // ==========================================
+    // Print System Implementation
+    // ==========================================
+    function triggerPrintHtml(title, bodyHtml) {
+      const printWindow = window.open('', '_blank', 'width=900,height=750');
+      if (!printWindow) {
+        alert("Please allow popups to print documents.");
+        return;
+      }
+      printWindow.document.open();
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <title>${title}</title>
+          <style>
+            @page { size: A4 portrait; margin: 12mm; }
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; color: #1e293b; margin: 0; padding: 15px; font-size: 11px; }
+            .header { border-bottom: 2px solid #6001d2; padding-bottom: 10px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: flex-start; }
+            .title { font-size: 18px; font-weight: bold; color: #6001d2; margin: 0 0 3px 0; }
+            .subtitle { font-size: 11px; color: #64748b; margin: 0; }
+            .meta-box { background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 10px; margin-bottom: 14px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            .meta-item strong { display: block; font-size: 9px; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+            .meta-item span { font-size: 11px; font-weight: 600; color: #0f172a; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 10px; }
+            th { background: #f1f5f9; color: #1e293b; font-weight: bold; text-align: left; padding: 7px 8px; border: 1px solid #cbd5e1; font-size: 9px; text-transform: uppercase; }
+            td { padding: 6px 8px; border: 1px solid #cbd5e1; }
+            .text-right { text-align: right; }
+            .text-center { text-align: center; }
+            .badge { display: inline-block; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 9px; }
+            .badge-confirmed { background: #dcfce7; color: #166534; }
+            .badge-review { background: #fef3c7; color: #92400e; }
+            .badge-duplicate { background: #f1f5f9; color: #475569; }
+            .totals-row td { font-weight: bold; background: #f8fafc; }
+            .signatures { margin-top: 35px; display: flex; justify-content: space-between; page-break-inside: avoid; }
+            .sig-box { width: 180px; text-align: center; border-top: 1px dashed #64748b; padding-top: 6px; font-size: 10px; color: #334155; font-weight: 600; }
+            .footer { margin-top: 25px; padding-top: 10px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 9px; color: #94a3b8; page-break-inside: avoid; }
+            @media print {
+              body { padding: 0; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          ${bodyHtml}
+          <script>
+            window.onload = function() {
+              window.focus();
+              window.print();
+            };
+          <\/script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
+
+    function printOrdersReport() {
+      if (!ordersData || ordersData.length === 0) {
+        alert("No orders to print for current filter.");
+        return;
+      }
+      const dateStr = new Date().toLocaleString();
+      const dayLabel = currentDayFilter === "all" ? "All (Past 7 Days)" : (currentDayFilter === "today" ? "Today" : currentDayFilter);
+      const statusLabel = document.getElementById("statusFilter").value;
+      const totalQty = ordersData.reduce((acc, o) => acc + (o.total_quantity || 0), 0);
+      const totalAmt = ordersData.reduce((acc, o) => acc + (o.total_amount || 0), 0);
+
+      const rowsHtml = ordersData.map((ord, idx) => {
+        const rawDate = (ord.raw_email && ord.raw_email.date_received) ? ord.raw_email.date_received : ord.created_at;
+        const dateFormatted = rawDate ? new Date(rawDate).toLocaleDateString([], {month: 'short', day: 'numeric', year: 'numeric'}) : "N/A";
+        const statusClass = ord.status === "CONFIRMED" ? "badge-confirmed" : (ord.status === "REVIEW_NEEDED" ? "badge-review" : "badge-duplicate");
+        return `
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td>${dateFormatted}</td>
+            <td><strong>${escapeHtml(ord.po_number || 'N/A')}</strong></td>
+            <td>${escapeHtml(ord.booking_number || 'N/A')}</td>
+            <td>${escapeHtml(ord.buyer_name || 'Unknown')}</td>
+            <td>${escapeHtml(ord.order_type || 'Booking')}</td>
+            <td class="text-right">${Number(ord.total_quantity).toLocaleString()} ${ord.quantity_unit || 'PCS'}</td>
+            <td class="text-right">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            <td class="text-center"><span class="badge ${statusClass}">${ord.status}</span></td>
+          </tr>
+        `;
+      }).join('');
+
+      const bodyHtml = `
+        <div class="header">
+          <div>
+            <h1 class="title">Yahoo Mail Order Management & Tracking</h1>
+            <p class="subtitle">Official Customer Purchase Orders Report</p>
+          </div>
+          <div style="text-align: right;">
+            <p style="margin: 0; font-size: 11px; font-weight: 600;">Printed: ${dateStr}</p>
+            <p style="margin: 2px 0 0 0; font-size: 10px; color: #64748b;">Filter: ${dayLabel} | Status: ${statusLabel}</p>
+          </div>
+        </div>
+
+        <div class="meta-box">
+          <div class="meta-item">
+            <strong>Total Orders Listed</strong>
+            <span>${ordersData.length} Orders</span>
+          </div>
+          <div class="meta-item">
+            <strong>Total Order Quantity</strong>
+            <span>${Number(totalQty).toLocaleString()} Units</span>
+          </div>
+          <div class="meta-item">
+            <strong>Total Order Value</strong>
+            <span>USD ${Number(totalAmt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+          </div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25px;" class="text-center">#</th>
+              <th>Received Date</th>
+              <th>PO Number</th>
+              <th>Booking Ref</th>
+              <th>Buyer / Client</th>
+              <th>Order Type</th>
+              <th class="text-right">Quantity</th>
+              <th class="text-right">Amount</th>
+              <th class="text-center">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+            <tr class="totals-row">
+              <td colspan="6" class="text-right">GRAND TOTALS:</td>
+              <td class="text-right">${Number(totalQty).toLocaleString()}</td>
+              <td class="text-right">USD ${Number(totalAmt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+              <td></td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-box">Prepared By</div>
+          <div class="sig-box">Verified / Merchandiser</div>
+          <div class="sig-box">Commercial In-Charge</div>
+        </div>
+
+        <div class="footer">
+          <span>Yahoo Mail Order Management System • Automated Order Extraction</span>
+          <span>Report Generated on ${new Date().toLocaleDateString()}</span>
+        </div>
+      `;
+
+      triggerPrintHtml(`Orders_Report_${new Date().toISOString().slice(0, 10)}`, bodyHtml);
+    }
+
+    function printSingleOrder(orderId) {
+      if (!orderId && currentSelectedOrder) orderId = currentSelectedOrder.id;
+      const ord = ordersData.find(o => o.id === orderId);
+      if (!ord) return;
+
+      const rawDate = (ord.raw_email && ord.raw_email.date_received) ? ord.raw_email.date_received : ord.created_at;
+      const dateFormatted = rawDate ? new Date(rawDate).toLocaleString() : "N/A";
+      const statusClass = ord.status === "CONFIRMED" ? "badge-confirmed" : (ord.status === "REVIEW_NEEDED" ? "badge-review" : "badge-duplicate");
+
+      let itemsHtml = "";
+      if (ord.items && ord.items.length > 0) {
+        itemsHtml = ord.items.map((it, idx) => `
+          <tr>
+            <td class="text-center">${idx + 1}</td>
+            <td><strong>${escapeHtml(it.item_code || 'ITEM')}</strong></td>
+            <td>${escapeHtml(it.description || '')}</td>
+            <td>${escapeHtml((it.color || '-') + ' / ' + (it.size || '-'))}</td>
+            <td class="text-right">${Number(it.quantity).toLocaleString()} ${it.unit || 'PCS'}</td>
+            <td class="text-right">${ord.currency} ${Number(it.unit_price).toFixed(2)}</td>
+            <td class="text-right">${ord.currency} ${Number(it.total_price).toFixed(2)}</td>
+          </tr>
+        `).join('');
+      } else {
+        itemsHtml = `
+          <tr>
+            <td class="text-center">1</td>
+            <td><strong>${escapeHtml(ord.po_number || 'ORDER-1')}</strong></td>
+            <td>${escapeHtml(ord.order_type || 'Purchase Order items')}</td>
+            <td>-</td>
+            <td class="text-right">${Number(ord.total_quantity).toLocaleString()} ${ord.quantity_unit || 'PCS'}</td>
+            <td class="text-right">${ord.currency} ${(ord.total_quantity > 0 ? (ord.total_amount / ord.total_quantity).toFixed(2) : '0.00')}</td>
+            <td class="text-right">${ord.currency} ${Number(ord.total_amount).toFixed(2)}</td>
+          </tr>
+        `;
+      }
+
+      const emailSubject = (ord.raw_email && ord.raw_email.subject) || "Direct Ingestion";
+      const emailSender = (ord.raw_email && ord.raw_email.sender) || "N/A";
+
+      const bodyHtml = `
+        <div class="header">
+          <div>
+            <h1 class="title">PURCHASE ORDER & BOOKING SHEET</h1>
+            <p class="subtitle">Yahoo Mail Order Extraction Slip • Order Ref #${ord.id}</p>
+          </div>
+          <div style="text-align: right;">
+            <span class="badge ${statusClass}" style="font-size: 11px; padding: 4px 8px;">${ord.status}</span>
+            <p style="margin: 4px 0 0 0; font-size: 10px; color: #64748b;">Confidence: ${Math.round((ord.confidence_score || 0) * 100)}%</p>
+          </div>
+        </div>
+
+        <div class="meta-box" style="grid-template-columns: repeat(4, 1fr);">
+          <div class="meta-item">
+            <strong>PO Number</strong>
+            <span style="color: #6001d2; font-size: 13px;">${escapeHtml(ord.po_number || 'N/A')}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Booking Number</strong>
+            <span>${escapeHtml(ord.booking_number || 'N/A')}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Buyer / Customer</strong>
+            <span>${escapeHtml(ord.buyer_name || 'Unknown')}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Order Type</strong>
+            <span>${escapeHtml(ord.order_type || 'Booking')}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Date Received</strong>
+            <span>${dateFormatted}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Delivery Date</strong>
+            <span>${ord.delivery_date ? new Date(ord.delivery_date).toLocaleDateString() : 'As per schedule'}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Total Quantity</strong>
+            <span>${Number(ord.total_quantity).toLocaleString()} ${ord.quantity_unit || 'PCS'}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Total Amount</strong>
+            <span style="color: #0f172a; font-size: 13px;">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</span>
+          </div>
+        </div>
+
+        <div style="margin-bottom: 12px; font-size: 10px; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 6px; padding: 7px 10px;">
+          <span style="font-weight: bold; color: #6001d2;">Source Email:</span> ${escapeHtml(emailSubject)} &nbsp;|&nbsp; 
+          <span style="font-weight: bold; color: #6001d2;">Sender:</span> ${escapeHtml(emailSender)}
+        </div>
+
+        <h3 style="font-size: 11px; margin: 12px 0 6px 0; text-transform: uppercase; letter-spacing: 0.5px; color: #334155;">Extracted Line Items</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 25px;" class="text-center">#</th>
+              <th>Item / Code</th>
+              <th>Description</th>
+              <th>Color / Size</th>
+              <th class="text-right">Quantity</th>
+              <th class="text-right">Rate</th>
+              <th class="text-right">Total Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHtml}
+            <tr class="totals-row">
+              <td colspan="4" class="text-right">GRAND TOTAL:</td>
+              <td class="text-right">${Number(ord.total_quantity).toLocaleString()} ${ord.quantity_unit || 'PCS'}</td>
+              <td></td>
+              <td class="text-right">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="signatures">
+          <div class="sig-box">Merchandiser Signature</div>
+          <div class="sig-box">Store / Production Manager</div>
+          <div class="sig-box">Authorized Signature</div>
+        </div>
+
+        <div class="footer">
+          <span>Yahoo Mail Order Extraction Slip • PO: ${escapeHtml(ord.po_number || '')} • Booking: ${escapeHtml(ord.booking_number || '')}</span>
+          <span>Printed: ${new Date().toLocaleString()}</span>
+        </div>
+      `;
+
+      triggerPrintHtml(`Order_${ord.po_number || ord.id}`, bodyHtml);
+    }
+
+    function printEmailMessage() {
+      if (!activeEmailBodyOrder) return;
+      const ord = activeEmailBodyOrder;
+      const subject = (ord.raw_email && ord.raw_email.subject) || "No Subject";
+      const sender = (ord.raw_email && ord.raw_email.sender) || "Unknown";
+      const dateStr = (ord.raw_email && ord.raw_email.date_received) ? new Date(ord.raw_email.date_received).toLocaleString() : new Date(ord.created_at).toLocaleString();
+      const bodyHtml = (ord.raw_email && ord.raw_email.body_html) ? ord.raw_email.body_html : "";
+      const bodyPlain = (ord.raw_email && ord.raw_email.body_plain) ? ord.raw_email.body_plain : "";
+
+      const contentToPrint = (currentEmailFormat === "html" && bodyHtml) ? bodyHtml : `<pre style="font-family: monospace; white-space: pre-wrap; font-size: 11px; line-height: 1.6;">${escapeHtml(bodyPlain || bodyHtml || "No content")}</pre>`;
+
+      const printDocument = `
+        <div class="header">
+          <div>
+            <h1 class="title">Yahoo Mail - Order Message</h1>
+            <p class="subtitle">Reference Order #${ord.id} • PO: ${escapeHtml(ord.po_number || 'N/A')}</p>
+          </div>
+        </div>
+
+        <div class="meta-box" style="grid-template-columns: 1fr;">
+          <div class="meta-item">
+            <strong>Subject</strong>
+            <span style="font-size: 12px; color: #0f172a;">${escapeHtml(subject)}</span>
+          </div>
+          <div class="meta-item" style="margin-top: 6px;">
+            <strong>From</strong>
+            <span>${escapeHtml(sender)}</span>
+          </div>
+          <div class="meta-item" style="margin-top: 6px;">
+            <strong>Received Date</strong>
+            <span>${dateStr}</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid #cbd5e1; border-radius: 6px; padding: 14px; margin-top: 14px;">
+          ${contentToPrint}
+        </div>
+
+        <div class="footer">
+          <span>Yahoo Mail Order Extraction System</span>
+          <span>Printed: ${new Date().toLocaleString()}</span>
+        </div>
+      `;
+
+      triggerPrintHtml(`Email_${ord.id}`, printDocument);
     }
 
     function closeDetailModal() {
