@@ -1,0 +1,24 @@
+{
+  "name": "Yahoo Mail Order Manager",
+  "short_name": "OrderManager",
+  "description": "Automated Yahoo Mail Customer Order Extraction & Management System",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#6001d2",
+  "theme_color": "#6001d2",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/static/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

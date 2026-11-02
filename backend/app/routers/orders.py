@@ -19,8 +19,8 @@ from sqlalchemy import or_, func
 
 from app.database import get_db
 from app.models import Order, OrderItem, RawEmail, Attachment
-from app.schemas import OrderResponse, OrderUpdate, DashboardMetrics, DailySummaryItem
-from app.services.extractor import extract_full_order
+from app.schemas import OrderResponse, OrderUpdate, DashboardMetrics, DailySummaryItem, CategorySummaryItem
+from app.services.extractor import extract_full_order, detect_order_category
 
 router = APIRouter(prefix="/orders", tags=["Orders"])
 
@@ -92,6 +92,7 @@ def get_daily_summary(db: Session = Depends(get_db)):
 def list_orders(
     search: Optional[str] = Query(None, description="Search in PO, Booking, Buyer"),
     status: Optional[str] = Query(None, description="CONFIRMED, REVIEW_NEEDED, DUPLICATE, CANCELLED"),
+    category: Optional[str] = Query(None, description="Carton, Elastic, Poly, Jacquard Elastic, Other"),
     buyer: Optional[str] = Query(None, description="Filter by buyer"),
     day_filter: Optional[str] = Query(None, description="'today', 'yesterday', 'last_7_days', 'all', or 'YYYY-MM-DD'"),
     date_from: Optional[datetime.date] = None,
@@ -104,6 +105,9 @@ def list_orders(
 
     if status and status != "ALL":
         query = query.filter(Order.status == status)
+
+    if category and category != "ALL":
+        query = query.filter(Order.category.ilike(category))
 
     if buyer:
         query = query.filter(Order.buyer_name.ilike(f"%{buyer}%"))
@@ -172,6 +176,29 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
     last_order = db.query(Order).order_by(Order.created_at.desc()).first()
     last_sync = last_order.created_at if last_order else None
 
+    # Categories Summary
+    CATEGORIES_META = [
+        {"category": "Carton", "label_en": "Carton", "label_bn": "কার্টন", "icon": "fa-box"},
+        {"category": "Elastic", "label_en": "Elastic", "label_bn": "ইলাস্টিক", "icon": "fa-ruler-combined"},
+        {"category": "Poly", "label_en": "Poly", "label_bn": "পলি", "icon": "fa-bag-shopping"},
+        {"category": "Jacquard Elastic", "label_en": "Jacquard Elastic", "label_bn": "জ্যাকর্ড ইলাস্টিক", "icon": "fa-certificate"},
+        {"category": "Other", "label_en": "Other", "label_bn": "অন্যান্য", "icon": "fa-tags"},
+    ]
+
+    categories_summary = []
+    for cat_def in CATEGORIES_META:
+        c_name = cat_def["category"]
+        matching = [o for o in all_orders if (o.category or "Other").lower() == c_name.lower()]
+        categories_summary.append(CategorySummaryItem(
+            category=c_name,
+            label_en=cat_def["label_en"],
+            label_bn=cat_def["label_bn"],
+            icon=cat_def["icon"],
+            order_count=len(matching),
+            total_quantity=round(sum(o.total_quantity or 0.0 for o in matching), 2),
+            total_amount=round(sum(o.total_amount or 0.0 for o in matching), 2)
+        ))
+
     return DashboardMetrics(
         total_orders=total_orders,
         confirmed_orders=confirmed_orders,
@@ -182,6 +209,7 @@ def get_dashboard_metrics(db: Session = Depends(get_db)):
         today_orders=today_orders,
         today_quantity=round(today_quantity, 2),
         past_7_days_orders=past_7_days_orders,
+        categories=categories_summary,
         last_sync_time=last_sync,
         sync_status="active"
     )

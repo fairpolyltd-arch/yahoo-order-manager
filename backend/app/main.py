@@ -1,3 +1,4 @@
+import socket
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -31,6 +32,39 @@ app.include_router(accounts.router, prefix=settings.API_V1_STR)
 app.include_router(orders.router, prefix=settings.API_V1_STR)
 app.include_router(sync.router, prefix=settings.API_V1_STR)
 app.include_router(export.router, prefix=settings.API_V1_STR)
+
+@app.get("/api/v1/system/network-info")
+def get_network_info():
+    ips = []
+    try:
+        hostname = socket.gethostname()
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            s.connect(("8.8.8.8", 80))
+            primary_ip = s.getsockname()[0]
+            ips.append(primary_ip)
+        except Exception:
+            primary_ip = "127.0.0.1"
+        finally:
+            s.close()
+
+        addr_info = socket.getaddrinfo(hostname, None)
+        for item in addr_info:
+            ip = item[4][0]
+            if ":" not in ip and ip != "127.0.0.1" and ip not in ips:
+                ips.append(ip)
+    except Exception:
+        primary_ip = "127.0.0.1"
+        ips = ["127.0.0.1"]
+
+    return {
+        "hostname": socket.gethostname(),
+        "primary_ip": primary_ip,
+        "all_ips": ips,
+        "port": 8000,
+        "network_url": f"http://{primary_ip}:8000",
+        "local_url": "http://localhost:8000"
+    }
 
 # Serve Web Dashboard Static Files
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"

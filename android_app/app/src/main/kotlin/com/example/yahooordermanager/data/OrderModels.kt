@@ -9,6 +9,7 @@ data class OrderDto(
     val booking_number: String? = null,
     val buyer_name: String? = null,
     val order_type: String? = null,
+    val category: String? = "Other",
     val total_quantity: Double = 0.0,
     val quantity_unit: String = "PCS",
     val currency: String = "USD",

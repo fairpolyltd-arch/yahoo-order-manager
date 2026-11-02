@@ -62,6 +62,7 @@ class Order(Base):
     booking_number = Column(String(100), index=True, nullable=True)
     buyer_name = Column(String(150), index=True, nullable=True)
     order_type = Column(String(100), nullable=True)  # e.g., "Elastic Booking", "Purchase Order", etc.
+    category = Column(String(50), index=True, default="Other")  # Carton | Elastic | Poly | Jacquard Elastic | Other
     
     order_date = Column(DateTime, nullable=True)
     delivery_date = Column(DateTime, nullable=True)

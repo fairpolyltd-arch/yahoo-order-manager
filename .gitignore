@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PyInstaller / Build Artifacts
+dist/
+build/
+*.spec
+YahooOrderManager.exe
+*.log
+server_error.log
+
+# Local data & attachments & exports
+backend/data/attachments/
+backend/data/attachments/*
+backend/data/exports/
+backend/data/exports/*
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Android build outputs
+.gradle/
+android_app/build/
+android_app/.gradle/
+android_app/app/build/
+local.properties
+
+# OS generated files
+.DS_Store
+Thumbs.db

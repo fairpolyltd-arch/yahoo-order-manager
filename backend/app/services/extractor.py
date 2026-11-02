@@ -276,6 +276,26 @@ def compute_order_fingerprint(po: Optional[str], booking: Optional[str], buyer: 
     raw_str = "|".join(components)
     return hashlib.sha256(raw_str.encode("utf-8")).hexdigest()
 
+def detect_order_category(subject: str = "", order_type: str = "", text_content: str = "") -> str:
+    """
+    Categorizes the order into primary product categories:
+    - 'Jacquard Elastic'
+    - 'Elastic'
+    - 'Poly'
+    - 'Carton'
+    - 'Other'
+    """
+    txt = f"{subject or ''} {order_type or ''} {text_content or ''}".lower()
+    if "jacquard" in txt or "jcq" in txt:
+        return "Jacquard Elastic"
+    if "elastic" in txt or "drawcord" in txt:
+        return "Elastic"
+    if re.search(r'\b(poly|polybag|polybags|ldpe|hdpe|polyester|polythine|polyethylene)\b', txt):
+        return "Poly"
+    if re.search(r'\b(carton|cartons|ctn|corrugated)\b', txt):
+        return "Carton"
+    return "Other"
+
 def extract_full_order(
     subject: str,
     body_plain: str = "",
@@ -357,12 +377,14 @@ def extract_full_order(
         status = "REVIEW_NEEDED"
 
     fingerprint = compute_order_fingerprint(po_number, booking_number, buyer_name)
+    category = detect_order_category(subject=subject, order_type=order_type, text_content=combined_text)
 
     return {
         "po_number": po_number,
         "booking_number": booking_number,
         "buyer_name": buyer_name,
         "order_type": order_type,
+        "category": category,
         "order_date": order_date,
         "delivery_date": delivery_date,
         "total_quantity": total_qty,

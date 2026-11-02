@@ -13,10 +13,11 @@ router = APIRouter(tags=["Export & Attachments"])
 def download_excel(
     status: Optional[str] = Query(None),
     buyer: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     try:
-        filepath = export_orders_to_excel(db, status=status, buyer=buyer)
+        filepath = export_orders_to_excel(db, status=status, buyer=buyer, category=category)
         filename = os.path.basename(filepath)
         return FileResponse(
             path=filepath,
@@ -30,10 +31,11 @@ def download_excel(
 def download_csv(
     status: Optional[str] = Query(None),
     buyer: Optional[str] = Query(None),
+    category: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     try:
-        filepath = export_orders_to_csv(db, status=status, buyer=buyer)
+        filepath = export_orders_to_csv(db, status=status, buyer=buyer, category=category)
         filename = os.path.basename(filepath)
         return FileResponse(
             path=filepath,

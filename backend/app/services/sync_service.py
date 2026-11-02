@@ -155,6 +155,7 @@ def run_sync_for_account(db: Session, account_id: int, max_emails: int = 50, for
                     booking_number=extracted_data.get("booking_number"),
                     buyer_name=extracted_data.get("buyer_name"),
                     order_type=extracted_data.get("order_type"),
+                    category=extracted_data.get("category", "Other"),
                     order_date=extracted_data.get("order_date") or date_received,
                     delivery_date=extracted_data.get("delivery_date"),
                     total_quantity=extracted_data.get("total_quantity", 0.0),

@@ -2,9 +2,17 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>Yahoo Mail Order Management & Intelligent Extraction</title>
-  <!-- Tailwind CSS & Lucide Icons -->
+  <!-- PWA Manifest & App Icons -->
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="theme-color" content="#6001d2">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Order Manager">
+  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <!-- Tailwind CSS & FontAwesome Icons -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <script>
@@ -75,6 +83,12 @@
         <button id="syncNowBtn" onclick="triggerManualSync()" class="px-3 py-1.5 rounded-lg bg-purple-700 hover:bg-purple-800 text-white text-xs font-semibold transition shadow-sm flex items-center space-x-1.5">
           <i id="syncIcon" class="fa-solid fa-arrows-rotate"></i>
           <span data-i18n="sync_now">Sync Now</span>
+        </button>
+
+        <!-- Mobile & Network Access Button -->
+        <button onclick="openNetworkModal()" class="px-3 py-1.5 rounded-lg border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-semibold transition flex items-center space-x-1.5 shadow-xs">
+          <i class="fa-solid fa-wifi text-purple-600"></i>
+          <span class="hidden md:inline" data-i18n="network_access_btn">Mobile & Other PCs</span>
         </button>
 
         <!-- Yahoo Account Settings Modal Trigger -->
@@ -167,6 +181,22 @@
       </div>
     </div>
 
+    <!-- Product Category Quick Selector -->
+    <div class="bg-white rounded-xl border border-slate-200 p-3 shadow-xs space-y-2">
+      <div class="flex items-center justify-between px-1">
+        <div class="flex items-center space-x-2">
+          <i class="fa-solid fa-shapes text-purple-700"></i>
+          <h3 class="text-xs font-bold text-slate-800 uppercase tracking-wider" data-i18n="category_header">Order Categories</h3>
+        </div>
+        <span class="text-[11px] text-slate-500 font-medium hidden sm:inline" data-i18n="category_hint">Filter orders by product category (Carton, Elastic, Poly, Jacquard)</span>
+      </div>
+
+      <!-- Category Filter Pills Grid -->
+      <div id="categoryTabsContainer" class="flex flex-wrap items-center gap-2 text-xs">
+        <!-- Rendered dynamically -->
+      </div>
+    </div>
+
     <!-- Filter and Search Toolbar -->
     <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs space-y-3">
       <div class="flex flex-col md:flex-row gap-3 items-center justify-between">
@@ -179,6 +209,16 @@
 
         <!-- Filter Controls & Export Buttons -->
         <div class="flex flex-wrap items-center gap-2 w-full md:w-auto justify-end">
+          <!-- Category Filter Dropdown -->
+          <select id="categoryFilter" onchange="onCategorySelectChange()" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-600">
+            <option value="ALL" data-i18n="cat_all">All Categories</option>
+            <option value="Carton">📦 Carton (কার্টন)</option>
+            <option value="Elastic">〰️ Elastic (ইলাস্টিক)</option>
+            <option value="Poly">🛍️ Poly (পলি)</option>
+            <option value="Jacquard Elastic">✨ Jacquard Elastic (জ্যাকর্ড)</option>
+            <option value="Other">🏷️ Other (অন্যান্য)</option>
+          </select>
+
           <!-- Status Filter -->
           <select id="statusFilter" onchange="fetchOrders()" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-purple-600">
             <option value="ALL" data-i18n="filter_all">All Statuses</option>
@@ -218,6 +258,7 @@
               <th class="py-3 px-4" data-i18n="th_po_number">PO Number</th>
               <th class="py-3 px-4" data-i18n="th_booking_number">Booking Number</th>
               <th class="py-3 px-4" data-i18n="th_buyer">Buyer</th>
+              <th class="py-3 px-4" data-i18n="th_category">Category</th>
               <th class="py-3 px-4" data-i18n="th_order_type">Order Type</th>
               <th class="py-3 px-4 text-right" data-i18n="th_quantity">Quantity</th>
               <th class="py-3 px-4 text-right" data-i18n="th_amount">Amount</th>
@@ -303,6 +344,17 @@
           <div>
             <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_quantity">Total Quantity</label>
             <input type="number" id="editQuantity" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1" data-i18n="th_category">Category</label>
+            <select id="editCategory" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs font-medium focus:ring-2 focus:ring-purple-600 focus:outline-none">
+              <option value="Carton">Carton (কার্টন)</option>
+              <option value="Elastic">Elastic (ইলাস্টিক)</option>
+              <option value="Poly">Poly (পলি)</option>
+              <option value="Jacquard Elastic">Jacquard Elastic (জ্যাকর্ড)</option>
+              <option value="Other">Other (অন্যান্য)</option>
+            </select>
           </div>
 
           <div>
@@ -486,6 +538,82 @@
     </div>
   </div>
 
+  <!-- Network & Mobile Connection Modal -->
+  <div id="networkModal" class="fixed inset-0 bg-slate-900/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-200 pb-3">
+        <div class="flex items-center space-x-2.5">
+          <div class="w-9 h-9 rounded-xl bg-purple-700 text-white flex items-center justify-center font-bold text-base shadow-sm">
+            <i class="fa-solid fa-network-wired"></i>
+          </div>
+          <div>
+            <h3 class="text-sm font-bold text-slate-900" data-i18n="modal_network_title">Connect from Any PC or Mobile Phone</h3>
+            <p class="text-xs text-slate-500" data-i18n="modal_network_subtitle">Access dashboard over local WiFi / Network</p>
+          </div>
+        </div>
+        <button onclick="closeNetworkModal()" class="w-8 h-8 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <!-- Network URL Box -->
+      <div class="p-4 bg-purple-50/70 border border-purple-200 rounded-xl space-y-2">
+        <span class="text-[11px] font-bold uppercase tracking-wider text-purple-700">Your Local Network Access URL</span>
+        <div class="flex items-center space-x-2">
+          <input type="text" id="networkUrlInput" readonly value="http://192.168.0.108:8000" class="flex-1 px-3 py-2 bg-white border border-purple-200 rounded-lg text-xs font-mono font-bold text-slate-800 select-all" />
+          <button onclick="copyNetworkUrl()" class="px-3 py-2 bg-purple-700 hover:bg-purple-800 text-white font-semibold text-xs rounded-lg transition shadow-xs flex items-center space-x-1">
+            <i class="fa-solid fa-copy"></i>
+            <span>Copy</span>
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500">Open Chrome or Edge on any laptop, tablet, or PC connected to this WiFi.</p>
+      </div>
+
+      <!-- QR Code & Mobile App Instructions -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center border border-slate-200 rounded-xl p-3 bg-slate-50">
+        <div class="flex flex-col items-center justify-center text-center p-2 bg-white rounded-lg border border-slate-200 shadow-2xs">
+          <img id="networkQrCodeImg" src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=http://192.168.0.108:8000" alt="Scan QR Code" class="w-32 h-32 rounded-md object-contain" />
+          <span class="text-[10px] text-slate-400 font-semibold mt-1.5">Scan with Phone Camera</span>
+        </div>
+        <div class="space-y-2 text-xs text-slate-700">
+          <div class="flex items-start space-x-2">
+            <i class="fa-solid fa-mobile-screen text-purple-600 mt-0.5"></i>
+            <div>
+              <strong class="text-slate-900">On Mobile Browser:</strong>
+              <p class="text-[11px] text-slate-500">Scan QR or enter URL to access responsive dashboard on mobile.</p>
+            </div>
+          </div>
+          <div class="flex items-start space-x-2">
+            <i class="fa-brands fa-android text-emerald-600 mt-0.5"></i>
+            <div>
+              <strong class="text-slate-900">In Android APK:</strong>
+              <p class="text-[11px] text-slate-500">Open app &rarr; Tap <strong class="text-purple-700">⚙️ Settings</strong> &rarr; Enter this URL &rarr; Tap <strong class="text-emerald-700">Save & Connect</strong>.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Firewall notice -->
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-start space-x-2">
+        <i class="fa-solid fa-triangle-exclamation text-amber-600 mt-0.5"></i>
+        <div class="space-y-1">
+          <strong>Cannot connect from other devices?</strong>
+          <p class="text-[11px] leading-relaxed">
+            Windows Firewall might block port 8000. Double click 
+            <code class="bg-amber-100 text-amber-900 px-1 py-0.5 rounded font-mono font-bold">ALLOW_NETWORK_ACCESS.bat</code> 
+            in the project folder to open port 8000 with one click.
+          </p>
+        </div>
+      </div>
+
+      <div class="pt-2 flex justify-end">
+        <button onclick="closeNetworkModal()" class="px-4 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Notification Toast -->
   <div id="toastNotification" class="fixed bottom-5 right-5 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none bg-slate-900 text-white px-4 py-3 rounded-xl shadow-xl flex items-center space-x-3 text-xs font-semibold">
     <i id="toastIcon" class="fa-solid fa-circle-check text-emerald-400 text-base"></i>
@@ -525,6 +653,15 @@
         btn_print: "Print Report",
         btn_print_order: "Print Order Sheet",
         btn_print_email: "Print Email",
+        category_header: "Product Categories",
+        category_hint: "Filter orders by product category",
+        th_category: "Category",
+        cat_all: "All Categories",
+        cat_carton: "Carton",
+        cat_elastic: "Elastic",
+        cat_poly: "Poly",
+        cat_jacquard: "Jacquard Elastic",
+        cat_other: "Other",
         th_po_number: "PO Number",
         th_booking_number: "Booking Number",
         th_buyer: "Buyer",
@@ -550,7 +687,10 @@
         label_secret: "App Password / Token",
         help_app_password: "Generate an App Password from: Yahoo Security Settings",
         btn_test_conn: "Test Connection",
-        btn_save_connect: "Save & Connect"
+        btn_save_connect: "Save & Connect",
+        network_access_btn: "Mobile & Other PCs",
+        modal_network_title: "Connect from Any PC or Mobile Phone",
+        modal_network_subtitle: "Access dashboard over local WiFi / Network"
       },
       bn: {
         app_title: "ইয়াহু মেইল অর্ডার এক্সট্রাকশন",
@@ -558,6 +698,9 @@
         download_apk: "অ্যান্ড্রয়েড APK",
         sync_now: "এখন সিঙ্ক করুন",
         mail_settings: "মেইল সেটিংস",
+        network_access_btn: "মোবাইল ও অন্যান্য পিসি",
+        modal_network_title: "যেকোনো পিসি বা মোবাইল থেকে সংযোগ",
+        modal_network_subtitle: "একই ওয়াইফাই নেটওয়ার্কের যেকোনো ডিভাইস থেকে ব্যবহার করুন",
         test_sample: "নমুনা অর্ডার পরীক্ষা",
         metric_today_orders: "আজকের অর্ডার",
         daily_orders_header: "দৈনিক অর্ডার (গত ৭ দিন)",
@@ -577,6 +720,15 @@
         btn_print: "প্রিন্ট রিপোর্ট",
         btn_print_order: "অর্ডার প্রিন্ট",
         btn_print_email: "ইমেইল প্রিন্ট",
+        category_header: "পণ্য ক্যাটাগরি তালিকা",
+        category_hint: "ক্যাটাগরি অনুযায়ী অর্ডার ফিল্টার করুন",
+        th_category: "ক্যাটাগরি",
+        cat_all: "সকল ক্যাটাগরি",
+        cat_carton: "কার্টন (Carton)",
+        cat_elastic: "ইলাস্টিক (Elastic)",
+        cat_poly: "পলি (Poly)",
+        cat_jacquard: "জ্যাকর্ড ইলাস্টিক (Jacquard)",
+        cat_other: "অন্যান্য (Other)",
         th_po_number: "পিও নম্বর (PO)",
         th_booking_number: "বুকিং নম্বর",
         th_buyer: "ক্রেতা (Buyer)",
@@ -612,6 +764,8 @@
     let searchTimeout = null;
     let currentDayFilter = "all";
     let dailySummaryData = [];
+    let currentCategoryFilter = "ALL";
+    let categoriesData = [];
 
     // Support both direct http://localhost:8000 serving and file:/// local execution
     const API_BASE = (window.location.protocol === 'file:' || !window.location.host) ? 'http://localhost:8000' : '';
@@ -626,6 +780,7 @@
       });
       document.getElementById("currentLangLabel").textContent = currentLanguage === "en" ? "বাংলা" : "English";
       renderDailyTabs();
+      renderCategoryTabs();
     }
 
     function toggleLanguage() {
@@ -668,10 +823,86 @@
           document.getElementById("statTodayOrders").textContent = todayCount;
           document.getElementById("statTodayQtyBadge").textContent = `${Number(m.today_quantity || 0).toLocaleString()} PCS`;
           document.getElementById("statPast7DaysOrders").textContent = m.past_7_days_orders || m.total_orders;
+
+          // Category Metrics
+          if (m.categories) {
+            categoriesData = m.categories;
+            renderCategoryTabs();
+          }
         }
       } catch (e) {
         console.error("Error fetching metrics:", e);
       }
+    }
+
+    function renderCategoryTabs() {
+      const container = document.getElementById("categoryTabsContainer");
+      if (!container) return;
+
+      const totalAllCount = categoriesData.reduce((acc, c) => acc + (c.order_count || 0), 0) || ordersData.length;
+      const isAll = (currentCategoryFilter === "ALL" || !currentCategoryFilter);
+      const allLabel = currentLanguage === "bn" ? "সকল পণ্য" : "All Products";
+
+      let html = `
+        <button onclick="selectCategoryFilter('ALL')" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition shrink-0 ${isAll ? 'bg-purple-700 text-white shadow-xs' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}">
+          <i class="fa-solid fa-layer-group"></i>
+          <span>${allLabel}</span>
+          <span class="ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-bold ${isAll ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}">${totalAllCount}</span>
+        </button>
+      `;
+
+      const catOrder = ["Carton", "Elastic", "Poly", "Jacquard Elastic", "Other"];
+      const catIcons = {
+        "Carton": "fa-box text-amber-500",
+        "Elastic": "fa-ruler-combined text-blue-500",
+        "Poly": "fa-bag-shopping text-emerald-500",
+        "Jacquard Elastic": "fa-certificate text-purple-500",
+        "Other": "fa-tags text-slate-500"
+      };
+
+      catOrder.forEach(catKey => {
+        const found = categoriesData.find(c => c.category.toLowerCase() === catKey.toLowerCase());
+        const count = found ? found.order_count : 0;
+        const label = found ? (currentLanguage === "bn" ? found.label_bn : found.label_en) : catKey;
+        const isActive = (currentCategoryFilter.toLowerCase() === catKey.toLowerCase());
+        const iconClass = catIcons[catKey] || "fa-tag";
+
+        let activeStyle = "";
+        if (isActive) {
+          activeStyle = "bg-purple-700 text-white shadow-xs font-bold";
+        } else if (count > 0) {
+          activeStyle = "bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 font-semibold";
+        } else {
+          activeStyle = "bg-slate-50 text-slate-400 hover:bg-slate-100 border border-slate-100";
+        }
+
+        const badgeStyle = isActive ? "bg-white/20 text-white" : (count > 0 ? "bg-purple-100 text-purple-800" : "bg-slate-100 text-slate-400");
+
+        html += `
+          <button onclick="selectCategoryFilter('${catKey}')" class="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs transition shrink-0 ${activeStyle}">
+            <i class="fa-solid ${isActive ? 'text-white' : iconClass}"></i>
+            <span>${label}</span>
+            <span class="px-1.5 py-0.2 rounded-full text-[10px] font-bold ${badgeStyle}">${count}</span>
+          </button>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function selectCategoryFilter(cat) {
+      currentCategoryFilter = cat;
+      const selectEl = document.getElementById("categoryFilter");
+      if (selectEl) selectEl.value = cat;
+      renderCategoryTabs();
+      fetchOrders();
+    }
+
+    function onCategorySelectChange() {
+      const selectEl = document.getElementById("categoryFilter");
+      currentCategoryFilter = selectEl.value;
+      renderCategoryTabs();
+      fetchOrders();
     }
 
     async function fetchDailySummary() {
@@ -747,6 +978,7 @@
       let url = `${API_BASE}/api/v1/orders?`;
       if (search) url += `search=${encodeURIComponent(search)}&`;
       if (status && status !== "ALL") url += `status=${encodeURIComponent(status)}&`;
+      if (currentCategoryFilter && currentCategoryFilter !== "ALL") url += `category=${encodeURIComponent(currentCategoryFilter)}&`;
       if (currentDayFilter) url += `day_filter=${encodeURIComponent(currentDayFilter)}&`;
 
       try {
@@ -765,6 +997,22 @@
       searchTimeout = setTimeout(() => {
         fetchOrders();
       }, 300);
+    }
+
+    function getCategoryBadge(cat) {
+      const c = cat || "Other";
+      switch (c) {
+        case "Carton":
+          return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200"><i class="fa-solid fa-box text-amber-500 mr-1"></i>Carton</span>`;
+        case "Elastic":
+          return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200"><i class="fa-solid fa-ruler-combined text-blue-500 mr-1"></i>Elastic</span>`;
+        case "Poly":
+          return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200"><i class="fa-solid fa-bag-shopping text-emerald-600 mr-1"></i>Poly</span>`;
+        case "Jacquard Elastic":
+          return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-purple-50 text-purple-800 border border-purple-200"><i class="fa-solid fa-certificate text-purple-600 mr-1"></i>Jacquard</span>`;
+        default:
+          return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-600 border border-slate-200"><i class="fa-solid fa-tags text-slate-400 mr-1"></i>${c}</span>`;
+      }
     }
 
     function formatRelativeDate(isoStr) {
@@ -796,9 +1044,9 @@
       if (!orders || orders.length === 0) {
         tbody.innerHTML = `
           <tr>
-            <td colspan="10" class="py-12 text-center text-slate-400">
+            <td colspan="11" class="py-12 text-center text-slate-400">
               <i class="fa-solid fa-inbox text-3xl mb-2 text-slate-300"></i>
-              <p>No orders found for the selected date filter. Select "All (Past 7 Days)" or click "Sync Now".</p>
+              <p>No orders found for the selected filter. Select "All Categories" or click "Sync Now".</p>
             </td>
           </tr>
         `;
@@ -830,6 +1078,7 @@
             <td class="py-3 px-4 font-semibold text-purple-700">${ord.po_number || '<span class="text-slate-400 italic">N/A</span>'}</td>
             <td class="py-3 px-4 font-medium text-slate-900">${ord.booking_number || '<span class="text-slate-400 italic">N/A</span>'}</td>
             <td class="py-3 px-4 font-semibold text-slate-800">${ord.buyer_name || '<span class="text-slate-400 italic">Unknown</span>'}</td>
+            <td class="py-3 px-4">${getCategoryBadge(ord.category)}</td>
             <td class="py-3 px-4 text-slate-600">${ord.order_type || 'Booking'}</td>
             <td class="py-3 px-4 text-right font-semibold text-slate-900">${Number(ord.total_quantity).toLocaleString()} <span class="text-[10px] text-slate-500 font-normal">${ord.quantity_unit}</span></td>
             <td class="py-3 px-4 text-right font-semibold text-slate-900">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -900,7 +1149,10 @@
 
     function exportData(format) {
       const status = document.getElementById("statusFilter").value;
-      const url = `${API_BASE}/api/v1/export/${format}?status=${encodeURIComponent(status)}`;
+      let url = `${API_BASE}/api/v1/export/${format}?status=${encodeURIComponent(status)}`;
+      if (currentCategoryFilter && currentCategoryFilter !== "ALL") {
+        url += `&category=${encodeURIComponent(currentCategoryFilter)}`;
+      }
       window.open(url, "_blank");
     }
 
@@ -928,6 +1180,7 @@
       document.getElementById("editBuyer").value = ord.buyer_name || "";
       document.getElementById("editOrderType").value = ord.order_type || "";
       document.getElementById("editQuantity").value = ord.total_quantity || 0;
+      document.getElementById("editCategory").value = ord.category || "Other";
       document.getElementById("editStatus").value = ord.status;
 
       // Line items
@@ -1146,6 +1399,7 @@
             <td><strong>${escapeHtml(ord.po_number || 'N/A')}</strong></td>
             <td>${escapeHtml(ord.booking_number || 'N/A')}</td>
             <td>${escapeHtml(ord.buyer_name || 'Unknown')}</td>
+            <td><strong>${escapeHtml(ord.category || 'Other')}</strong></td>
             <td>${escapeHtml(ord.order_type || 'Booking')}</td>
             <td class="text-right">${Number(ord.total_quantity).toLocaleString()} ${ord.quantity_unit || 'PCS'}</td>
             <td class="text-right">${ord.currency} ${Number(ord.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
@@ -1189,6 +1443,7 @@
               <th>PO Number</th>
               <th>Booking Ref</th>
               <th>Buyer / Client</th>
+              <th>Category</th>
               <th>Order Type</th>
               <th class="text-right">Quantity</th>
               <th class="text-right">Amount</th>
@@ -1198,7 +1453,7 @@
           <tbody>
             ${rowsHtml}
             <tr class="totals-row">
-              <td colspan="6" class="text-right">GRAND TOTALS:</td>
+              <td colspan="7" class="text-right">GRAND TOTALS:</td>
               <td class="text-right">${Number(totalQty).toLocaleString()}</td>
               <td class="text-right">USD ${Number(totalAmt).toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
               <td></td>
@@ -1284,6 +1539,10 @@
           <div class="meta-item">
             <strong>Buyer / Customer</strong>
             <span>${escapeHtml(ord.buyer_name || 'Unknown')}</span>
+          </div>
+          <div class="meta-item">
+            <strong>Category</strong>
+            <span style="color: #6001d2; font-weight: bold;">${escapeHtml(ord.category || 'Other')}</span>
           </div>
           <div class="meta-item">
             <strong>Order Type</strong>
@@ -1410,6 +1669,7 @@
         booking_number: document.getElementById("editBookingNumber").value,
         buyer_name: document.getElementById("editBuyer").value,
         order_type: document.getElementById("editOrderType").value,
+        category: document.getElementById("editCategory").value,
         total_quantity: parseFloat(document.getElementById("editQuantity").value) || 0,
         status: document.getElementById("editStatus").value
       };
@@ -1444,6 +1704,36 @@
       } catch (e) {
         showToast("Error deleting order.", true);
       }
+    }
+
+    // Network & Mobile Access Modal Functions
+    function openNetworkModal() {
+      document.getElementById("networkModal").classList.remove("hidden");
+      fetchNetworkInfo();
+    }
+
+    function closeNetworkModal() {
+      document.getElementById("networkModal").classList.add("hidden");
+    }
+
+    async function fetchNetworkInfo() {
+      try {
+        const res = await fetch(`${API_BASE}/api/v1/system/network-info`);
+        if (res.ok) {
+          const data = await res.json();
+          const url = data.network_url || `http://${data.primary_ip}:8000`;
+          document.getElementById("networkUrlInput").value = url;
+          document.getElementById("networkQrCodeImg").src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(url)}`;
+        }
+      } catch (e) {
+        console.error("Error fetching network info:", e);
+      }
+    }
+
+    function copyNetworkUrl() {
+      const input = document.getElementById("networkUrlInput");
+      navigator.clipboard.writeText(input.value);
+      showToast("Network URL copied to clipboard!");
     }
 
     // Account Modal Functions
@@ -1572,6 +1862,11 @@
       await fetchMetrics();
       await fetchDailySummary();
       await fetchOrders();
+
+      // Register PWA Service Worker for Mobile and PC App installation
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(err => console.log('SW registration:', err));
+      }
     });
   </script>
 </body>

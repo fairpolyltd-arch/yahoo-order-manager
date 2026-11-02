@@ -43,6 +43,7 @@ class OrderBase(BaseModel):
     booking_number: Optional[str] = None
     buyer_name: Optional[str] = None
     order_type: Optional[str] = None
+    category: Optional[str] = "Other"
     order_date: Optional[datetime.datetime] = None
     delivery_date: Optional[datetime.datetime] = None
     total_quantity: float = 0.0
@@ -61,6 +62,7 @@ class OrderUpdate(BaseModel):
     booking_number: Optional[str] = None
     buyer_name: Optional[str] = None
     order_type: Optional[str] = None
+    category: Optional[str] = None
     order_date: Optional[datetime.datetime] = None
     delivery_date: Optional[datetime.datetime] = None
     total_quantity: Optional[float] = None
@@ -157,6 +159,15 @@ class DailySummaryItem(BaseModel):
     total_amount: float
     is_today: bool
 
+class CategorySummaryItem(BaseModel):
+    category: str
+    label_en: str
+    label_bn: str
+    icon: str
+    order_count: int
+    total_quantity: float
+    total_amount: float
+
 class DashboardMetrics(BaseModel):
     total_orders: int
     confirmed_orders: int
@@ -167,5 +178,6 @@ class DashboardMetrics(BaseModel):
     today_orders: int = 0
     today_quantity: float = 0.0
     past_7_days_orders: int = 0
+    categories: List[CategorySummaryItem] = []
     last_sync_time: Optional[datetime.datetime] = None
     sync_status: str

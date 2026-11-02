@@ -1,3 +1,4 @@
+import os
 import sys
 from pathlib import Path
 
@@ -8,10 +9,12 @@ sys.path.insert(0, str(backend_dir))
 import uvicorn
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
     print("==================================================================")
     print("  Starting Yahoo Mail Order Extraction & Management Backend Server")
-    print("  Web Dashboard: http://localhost:8000")
-    print("  OpenAPI Docs:  http://localhost:8000/docs")
+    print(f"  Port: {port}")
+    print(f"  Web Dashboard: http://localhost:{port}")
+    print(f"  OpenAPI Docs:  http://localhost:{port}/docs")
     print("==================================================================")
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)
 

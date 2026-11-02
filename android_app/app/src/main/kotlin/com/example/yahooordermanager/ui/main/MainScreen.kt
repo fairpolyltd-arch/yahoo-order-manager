@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -22,6 +23,8 @@ import com.example.yahooordermanager.data.DailySummaryDto
 import com.example.yahooordermanager.data.DashboardMetricsDto
 import com.example.yahooordermanager.data.DefaultDataRepository
 import com.example.yahooordermanager.data.OrderDto
+import com.example.yahooordermanager.data.ServerConfig
+import kotlinx.coroutines.launch
 
 val YahooPurple = Color(0xFF6001D2)
 val StatusGreen = Color(0xFF10B981)
@@ -34,6 +37,17 @@ fun MainScreen(
     viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) },
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    var showServerDialog by remember { mutableStateOf(false) }
+
+    if (showServerDialog) {
+        ServerSettingsDialog(
+            onDismiss = { showServerDialog = false },
+            onSaved = {
+                showServerDialog = false
+                viewModel.loadData()
+            }
+        )
+    }
 
     when (val state = uiState) {
         MainScreenUiState.Loading -> {
@@ -52,19 +66,68 @@ fun MainScreen(
                 selectedDayFilter = state.selectedDayFilter,
                 onSelectDay = { filter -> viewModel.selectDayFilter(filter) },
                 onSyncClick = { viewModel.triggerSync() },
+                onOpenSettings = { showServerDialog = true },
                 modifier = modifier
             )
         }
         is MainScreenUiState.Error -> {
             Box(
-                modifier = modifier.fillMaxSize(),
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Error: ${state.throwable.message}", color = MaterialTheme.colorScheme.error)
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Button(onClick = { viewModel.loadData() }) {
-                        Text("Retry")
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            "⚠️",
+                            fontSize = 32.sp
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Cannot Reach Server",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            "Server URL: ${ServerConfig.currentUrl}",
+                            fontSize = 12.sp,
+                            color = YahooPurple,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            "Please make sure your phone and PC are connected to the same WiFi network, or update the PC IP address in settings.",
+                            fontSize = 12.sp,
+                            color = Color(0xFF64748B),
+                            lineHeight = 16.sp
+                        )
+                        Spacer(modifier = Modifier.height(20.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            OutlinedButton(
+                                onClick = { showServerDialog = true },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("⚙️ Server Settings", fontSize = 12.sp)
+                            }
+                            Button(
+                                onClick = { viewModel.loadData() },
+                                colors = ButtonDefaults.buttonColors(containerColor = YahooPurple),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Retry", fontSize = 12.sp)
+                            }
+                        }
                     }
                 }
             }
@@ -81,6 +144,7 @@ internal fun OrdersDashboard(
     selectedDayFilter: String,
     onSelectDay: (String) -> Unit,
     onSyncClick: () -> Unit,
+    onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var searchQuery by remember { mutableStateOf("") }
@@ -90,7 +154,8 @@ internal fun OrdersDashboard(
         else orders.filter {
             (it.po_number?.contains(searchQuery, ignoreCase = true) == true) ||
             (it.booking_number?.contains(searchQuery, ignoreCase = true) == true) ||
-            (it.buyer_name?.contains(searchQuery, ignoreCase = true) == true)
+            (it.buyer_name?.contains(searchQuery, ignoreCase = true) == true) ||
+            (it.category?.contains(searchQuery, ignoreCase = true) == true)
         }
     }
 
@@ -102,13 +167,13 @@ internal fun OrdersDashboard(
                     Column {
                         Text(
                             "Yahoo Mail Orders",
-                            fontSize = 18.sp,
+                            fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color.White
                         )
                         Text(
-                            "Past 7 Days & Daily Tracker",
-                            fontSize = 11.sp,
+                            "Server: ${ServerConfig.currentUrl.removePrefix("http://")}",
+                            fontSize = 10.sp,
                             color = Color.White.copy(alpha = 0.85f)
                         )
                     }
@@ -118,9 +183,13 @@ internal fun OrdersDashboard(
                         onClick = onSyncClick,
                         colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.2f)),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
                     ) {
-                        Text("Sync Now", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        Text("Sync", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(onClick = onOpenSettings) {
+                        Text("⚙️", fontSize = 16.sp)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -362,9 +431,10 @@ fun OrderCard(order: OrderDto) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 Text(
-                    order.order_type ?: "Order",
+                    "${order.category ?: "Other"} • ${order.order_type ?: "Order"}",
                     fontSize = 10.sp,
-                    color = Color.Gray
+                    color = Color(0xFF6B21A8),
+                    fontWeight = FontWeight.Medium
                 )
                 Text(
                     "Qty: ${order.total_quantity.toInt()} ${order.quantity_unit} • ${order.currency} ${order.total_amount}",
@@ -393,4 +463,132 @@ fun StatusPill(status: String) {
     ) {
         Text(status, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = textColor)
     }
+}
+
+@Composable
+fun ServerSettingsDialog(
+    onDismiss: () -> Unit,
+    onSaved: () -> Unit
+) {
+    val context = LocalContext.current
+    var urlText by remember { mutableStateOf(ServerConfig.currentUrl) }
+    var testResult by remember { mutableStateOf<String?>(null) }
+    var isTesting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                "Server Connection Settings",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF1E293B)
+            )
+        },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    "Enter your PC Backend Server URL (e.g. your PC's WiFi IP address or public tunnel URL):",
+                    fontSize = 12.sp,
+                    color = Color(0xFF64748B),
+                    lineHeight = 16.sp
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                OutlinedTextField(
+                    value = urlText,
+                    onValueChange = {
+                        urlText = it
+                        testResult = null
+                    },
+                    label = { Text("Server Base URL", fontSize = 11.sp) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+                Text("Quick Presets:", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF475569))
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            urlText = "http://192.168.0.108:8000"
+                            testResult = null
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("PC WiFi (192.168.0.108)", fontSize = 10.sp)
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            urlText = "http://10.0.2.2:8000"
+                            testResult = null
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Emulator", fontSize = 10.sp)
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        isTesting = true
+                        testResult = null
+                        scope.launch {
+                            val res = ServerConfig.testConnection(urlText)
+                            isTesting = false
+                            testResult = if (res.isSuccess) {
+                                "✅ " + res.getOrNull()
+                            } else {
+                                "❌ Failed: " + (res.exceptionOrNull()?.message ?: "Unreachable")
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isTesting,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4C1D95)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    if (isTesting) {
+                        CircularProgressIndicator(color = Color.White, modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Testing Connection...", fontSize = 12.sp)
+                    } else {
+                        Text("Test Connection", fontSize = 12.sp)
+                    }
+                }
+
+                if (testResult != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        testResult ?: "",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (testResult?.startsWith("✅") == true) Color(0xFF166534) else Color(0xFF991B1B)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    ServerConfig.saveUrl(context, urlText)
+                    onSaved()
+                },
+                colors = ButtonDefaults.buttonColors(containerColor = YahooPurple),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Save & Connect", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", fontSize = 12.sp)
+            }
+        }
+    )
 }
