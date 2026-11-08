@@ -1,0 +1,17 @@
+name: 24-7 Keep Alive Ping
+
+on:
+  schedule:
+    # Run every 10 minutes to prevent Render Free tier from sleeping
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Cloud Server
+        run: |
+          echo "Pinging Yahoo Order Manager Cloud Server..."
+          curl -s -m 30 -I https://yahoo-order-manager.onrender.com/api/v1/system/network-info || curl -s -m 30 -I https://yahoo-order-manager.onrender.com/
+          echo "Keep-alive ping completed successfully!"

@@ -61,6 +61,12 @@
       </div>
 
       <div class="flex items-center space-x-2 sm:space-x-3">
+        <!-- Install PWA App Button (Mobile & PC) -->
+        <button id="pwaInstallBtn" onclick="installPWA()" class="hidden px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition items-center space-x-1.5 shadow-sm">
+          <i class="fa-solid fa-cloud-arrow-down"></i>
+          <span data-i18n="install_app">Install App</span>
+        </button>
+
         <!-- Language Switcher Toggle -->
         <button id="langToggleBtn" onclick="toggleLanguage()" class="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-100 hover:bg-slate-200 text-xs font-semibold text-slate-700 transition flex items-center space-x-1">
           <i class="fa-solid fa-language text-purple-700"></i>
@@ -631,6 +637,7 @@
       en: {
         app_title: "Yahoo Mail Order Extraction",
         app_subtitle: "Automated Intelligent Extraction & Dashboard",
+        install_app: "Install App",
         download_apk: "Android APK",
         sync_now: "Sync Now",
         mail_settings: "Mail Settings",
@@ -695,6 +702,7 @@
       bn: {
         app_title: "ইয়াহু মেইল অর্ডার এক্সট্রাকশন",
         app_subtitle: "স্বয়ংক্রিয় বুদ্ধিমান নিষ্কাশন ও ড্যাশবোর্ড",
+        install_app: "অ্যাপ ইন্সটল করুন",
         download_apk: "অ্যান্ড্রয়েড APK",
         sync_now: "এখন সিঙ্ক করুন",
         mail_settings: "মেইল সেটিংস",
@@ -1853,6 +1861,27 @@
       } finally {
         btn.disabled = false;
         btn.innerHTML = `<span data-i18n="btn_save_connect">${i18n[currentLanguage].btn_save_connect || 'Save & Connect'}</span>`;
+      }
+    }
+
+    // PWA Install Prompt handling
+    let deferredInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstallPrompt = e;
+      const btn = document.getElementById('pwaInstallBtn');
+      if (btn) btn.classList.remove('hidden');
+    });
+
+    async function installPWA() {
+      if (deferredInstallPrompt) {
+        deferredInstallPrompt.prompt();
+        const choice = await deferredInstallPrompt.userChoice;
+        if (choice.outcome === 'accepted') {
+          const btn = document.getElementById('pwaInstallBtn');
+          if (btn) btn.classList.add('hidden');
+        }
+        deferredInstallPrompt = null;
       }
     }
 

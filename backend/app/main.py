@@ -71,10 +71,26 @@ STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 STATIC_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
+def start_keep_alive():
+    import threading
+    import time
+    import requests
+    def _ping():
+        time.sleep(60) # Wait 1 min after startup
+        while True:
+            try:
+                requests.get("https://yahoo-order-manager.onrender.com/api/v1/system/network-info", timeout=20)
+            except Exception:
+                pass
+            time.sleep(600) # Every 10 mins
+    t = threading.Thread(target=_ping, daemon=True)
+    t.start()
+
 @app.on_event("startup")
 def startup_event():
     print("[INIT] Starting Yahoo Mail Background Synchronization Engine...")
     sync_manager.start()
+    start_keep_alive()
 
 @app.on_event("shutdown")
 def shutdown_event():
