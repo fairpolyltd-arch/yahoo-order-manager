@@ -129,7 +129,8 @@ def run_sync_for_account(db: Session, account_id: int, max_emails: int = 50, for
                     subject=ed["subject"],
                     body_plain=ed.get("body_plain", ""),
                     body_html=ed.get("body_html", ""),
-                    attachment_data=att_processed_data
+                    attachment_data=att_processed_data,
+                    sender=ed.get("sender", "")
                 )
 
                 # Duplicate detection by fingerprint or PO number + Buyer

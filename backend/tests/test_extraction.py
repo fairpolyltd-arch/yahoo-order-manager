@@ -60,7 +60,47 @@ def test_additional_patterns():
     assert order["status"] == "CONFIRMED"
     print("[PASS] Full order extraction test passed successfully!")
 
+def test_advanced_booking_scenarios():
+    # 1. RE: 1350/26 with CCKL in body
+    o1 = extract_full_order(
+        subject="RE: 1350/26",
+        body_plain="Please see attached booking sheet for CCKL reference 1350.",
+        body_html="",
+        sender="merchandiser@youthbd.com"
+    )
+    assert "CCKL" in o1["booking_number"] and "1350/26" in o1["booking_number"], f"Failed o1: {o1['booking_number']}"
+
+    # 2. revise booking with number
+    o2 = extract_full_order(
+        subject="revise booking",
+        body_plain="Please see revised booking CCKL-1350/26 for VDE buyer.",
+        body_html="",
+        sender="habib@youthbd.com"
+    )
+    assert "CCKL-1350/26" in o2["booking_number"] and "Revised" in o2["booking_number"], f"Failed o2: {o2['booking_number']}"
+
+    # 3. REVISED WORK ORDER
+    o3 = extract_full_order(
+        subject="REVISED WORK ORDER",
+        body_plain="Work order 1350/26 revised today for Primark.",
+        body_html="",
+        sender="saif@youthbd.com"
+    )
+    assert "1350/26" in o3["booking_number"] and "Revised" in o3["booking_number"], f"Failed o3: {o3['booking_number']}"
+
+    # 4. Fallback to Company Name when nothing found
+    o4 = extract_full_order(
+        subject="Price offer inquiry",
+        body_plain="Please provide best price. Sincerely,\nRSM Fashion Ltd",
+        body_html="",
+        sender="arif@rsmfashion.com"
+    )
+    assert "RSM Fashion" in o4["booking_number"], f"Failed o4: {o4['booking_number']}"
+
+    print("[PASS] Advanced booking scenarios test passed successfully!")
+
 if __name__ == "__main__":
     test_primary_sample()
     test_additional_patterns()
+    test_advanced_booking_scenarios()
     print("ALL TESTS COMPLETED SUCCESSFULLY!")

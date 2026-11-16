@@ -8,8 +8,18 @@ from app.services.attachment_service import extract_tabular_items_from_text
 ORDER_KEYWORDS = [
     "order", "booking", "purchase order", "po#", "po-", "p.o.", "requisition",
     "elastic booking", "thread booking", "fabric booking", "accessories booking",
-    "delivery", "proforma", "pi#", "buyer"
+    "delivery", "proforma", "pi#", "buyer", "revise booking", "revised booking",
+    "revised work order", "work order", "1350/26", "cckl"
 ]
+
+EXCLUDE_WORDS = {
+    'for', 'of', 'the', 'and', 'along', 'with', 'approved', 'buyer', 'order', 
+    'orders', 'booking', 'bookings', 'sheet', 'layout', 'style', 'styles', 
+    'have', 'been', 'cancelled', 'details', 'detail', 'sample', 'color', 
+    'sp', 'ss', 's', 'ref', 'po', 'quality', 'issue', 'to', 'in', 'at',
+    'please', 'confirm', 'receipt', 'find', 'attached', 'kind', 'urgent',
+    'new', 'update', 'price', 'offer', 'draft', 'lc', 'webinar', 'today'
+}
 
 def is_order_email(subject: str, body: str = "") -> bool:
     """Heuristic check whether an email is likely a customer order/booking email."""
@@ -19,8 +29,181 @@ def is_order_email(subject: str, body: str = "") -> bool:
 def clean_extracted_value(val: Optional[str]) -> Optional[str]:
     if not val:
         return None
-    val = val.strip().strip(" :;,-&_#./\"'")
+    val = val.strip().strip(" :;,-_#./\"'\\\t\r\n")
     return val if val else None
+
+def extract_company_name(sender: str = "", body: str = "", buyer_name: str = "") -> str:
+    """Extract company name with clean fallbacks."""
+    if buyer_name and len(buyer_name) > 1 and buyer_name.lower() not in ["none", "unknown", "buyer", "customer", "style", "ref", "sheet", "sp"]:
+        if not any(bad in buyer_name.lower() for bad in ["clearly outlined", "tech pack", "this is not"]):
+            return clean_extracted_value(buyer_name) or "Unknown Company"
+
+    body_txt = body or ""
+    # 1. Company line in body
+    comp_patterns = [
+        r'\b([A-Za-z0-9\s&.\-]+?(?:Ltd|Limited|Garments|Apparels|Fashion|Fashion\s*Ltd|Knit|Knit\s*Industries|Knitwear|Textile|Textiles|Enterprise|Trading))\b',
+        r'Company\s*[:\-]\s*([A-Za-z0-9\s&.\-]+?)(?:\r|\n|$)',
+        r'Factory\s*[:\-]\s*([A-Za-z0-9\s&.\-]+?)(?:\r|\n|$)',
+    ]
+    for pat in comp_patterns:
+        m = re.search(pat, body_txt, re.IGNORECASE)
+        if m:
+            c = clean_extracted_value(m.group(1))
+            if c and 3 < len(c) < 45 and len(c.split()) <= 5:
+                if not any(bad in c.lower() for bad in ["google", "yahoo", "microsoft", "terms", "privacy", "table"]):
+                    return c
+
+    # 2. Extract from Sender string
+    if sender:
+        paren_m = re.search(r'\(([^)]+)\)', sender)
+        if paren_m:
+            inside = paren_m.group(1).strip()
+            if "-" in inside:
+                cand = clean_extracted_value(inside.split("-")[-1])
+                if cand and len(cand) > 2: return cand
+            elif any(k in inside.lower() for k in ["ltd", "fashion", "knit", "textile", "apparel", "group"]):
+                cand = clean_extracted_value(inside)
+                if cand: return cand
+
+        name_m = re.search(r'^["\']?([^"\'<]+)["\']?\s*<', sender)
+        if name_m:
+            name_part = name_m.group(1).strip()
+            if "-" in name_part and any(k in name_part.lower() for k in ["trading", "fashion", "ltd", "knit"]):
+                cand = clean_extracted_value(name_part.split("-")[-1])
+                if cand: return cand
+            if any(k in name_part.lower() for k in ["ltd", "limited", "plc", "fashion", "knit", "textile", "apparels", "group", "trading", "industries", "corporation"]):
+                cand = clean_extracted_value(name_part)
+                if cand: return cand
+
+        dom_m = re.search(r'@([A-Za-z0-9.\-]+)\.([a-z]{2,})', sender)
+        if dom_m:
+            dom = dom_m.group(1).lower()
+            if dom not in ["gmail", "yahoo", "hotmail", "outlook", "live", "icloud", "mail", "newsletters", "google", "accounts"]:
+                if "youthbd" in dom or "cckl" in dom:
+                    return "Comfit Composite Knit Ltd (CCKL)"
+                if "norpknit" in dom:
+                    return "Norp Knit Industries Ltd"
+                if "genesis" in dom:
+                    return "Genesis BD"
+                if "rsmfashion" in dom:
+                    return "RSM Fashion"
+                return dom.replace("-", " ").replace("_", " ").title()
+
+    buyer_body = re.search(r'\b(?:buyer|customer|client)\s*[:\-]\s*([A-Za-z0-9\s&.\-]+?)(?:\r|\n|,|\.|$)', body_txt, re.IGNORECASE)
+    if buyer_body:
+        b = clean_extracted_value(buyer_body.group(1))
+        if b and 2 < len(b) < 35 and len(b.split()) <= 4:
+            return b
+
+    return "Unknown Company"
+
+def extract_advanced_booking_number(subject: str = "", body: str = "", sender: str = "", buyer_name: str = "") -> Optional[str]:
+    """
+    Comprehensive Booking Number extractor:
+    1. Revise Booking / Revised Booking
+    2. REVISED WORK ORDER / Work Order
+    3. RE: 1350/26 (and <digits>/<digits> or <digits>-<digits>)
+    4. CCKL mentions in email body (e.g. CCKL-01734/26, CCKL 01511, CCKL 1350/26)
+    5. Deep body observation for booking or order numbers
+    6. If nothing is found, returns Company Name fallback!
+    """
+    sub = (subject or "").strip()
+    body_txt = (body or "").strip()
+    combined = f"{sub}\n\n{body_txt}"
+
+    is_revised = bool(
+        re.search(r'\b(revise|revised|revision)\b', sub, re.IGNORECASE) or 
+        re.search(r'\b(revised\s+booking|revise\s+booking|revised\s+work\s*order|revise\s*wo)\b', body_txt, re.IGNORECASE)
+    )
+    
+    is_work_order = bool(
+        re.search(r'\b(work\s*order|work\s*orders|w\.o\.|wo#)\b', sub, re.IGNORECASE) or
+        re.search(r'\b(work\s*order|work\s*orders|w\.o\.|wo#)\b', body_txt, re.IGNORECASE)
+    )
+
+    has_cckl = bool(
+        re.search(r'\bCCKL\b', combined, re.IGNORECASE) or 
+        (sender and "cckl" in sender.lower())
+    )
+
+    booking_candidate = None
+
+    # --- LEVEL 1: Explicit CCKL Booking Numbers ---
+    cckl_patterns = [
+        r'\b(?:CCKL[\s\-:_]*)+(\d{3,6}(?:\+\d{3,6})+[\-\/](?:2[0-9]|202[0-9]))\b',
+        r'\b(?:CCKL[\s\-:_]*)+(\d{3,6}[\-\/](?:2[0-9]|202[0-9]))\b',
+        r'\b(?:CCKL[\s\-:_]*)+(\d{3,6}(?:\+\d{3,6})+)\b',
+        r'\b(?:CCKL[\s\-:_]*)+([0-9]{4,6})\b',
+    ]
+    for pat in cckl_patterns:
+        m = re.search(pat, combined, re.IGNORECASE)
+        if m:
+            raw_num = m.group(1).strip()
+            raw_num = re.sub(r'(\d+)-(2[0-9])$', r'\1/\2', raw_num)
+            booking_candidate = f"CCKL-{raw_num}"
+            break
+
+    # --- LEVEL 2: Garment slash numbers like "1350/26" or "RE: 1350/26" ---
+    if not booking_candidate:
+        slash_match = re.search(r'\b(?:RE:|FW:|FWD:)?\s*([0-9]{3,6}[\/\-](?:2[0-9]|202[0-9]))\b', sub, re.IGNORECASE)
+        if not slash_match:
+            slash_match = re.search(r'\b(?:booking|order|work\s*order|wo|no|#|re:)?[\s:\-_]*([0-9]{3,6}[\/\-](?:2[0-9]|202[0-9]))\b', body_txt, re.IGNORECASE)
+
+        if slash_match:
+            num = slash_match.group(1).replace("-", "/")
+            if has_cckl and not num.upper().startswith("CCKL"):
+                booking_candidate = f"CCKL-{num}"
+            else:
+                booking_candidate = num
+
+    # --- LEVEL 3: Explicit Labels (Revise booking, Work Order, Booking No) ---
+    if not booking_candidate:
+        labeled_patterns = [
+            r'\b(?:revise|revised)\s+booking[\s#:\-_]*([A-Za-z0-9\-_/+]+(?:\s*[\/\-]\s*\d{2,4})?)\b',
+            r'\b(?:revised\s+)?(?:work\s*order|work\s*orders|w\.o\.)[\s#:\-_]*([A-Za-z0-9\-_/+]{3,25})\b',
+            r'\b(?:booking|bk)[\s#:\-_]*(?:no|#|num|number)?[\s#:\-_]*([A-Za-z0-9\-_/+]{3,25})\b',
+            r'\b(?:order)[\s#:\-_]*(?:no|#|num|number)[\s#:\-_]*([A-Za-z0-9\-_/+]{3,25})\b',
+        ]
+        for pat in labeled_patterns:
+            m = re.search(pat, combined, re.IGNORECASE)
+            if m:
+                val = clean_extracted_value(m.group(1))
+                if val and val.lower() not in EXCLUDE_WORDS and len(val) >= 3:
+                    if any(c.isdigit() for c in val):
+                        if has_cckl and not val.upper().startswith("CCKL") and re.match(r'^\d', val):
+                            booking_candidate = f"CCKL-{val}"
+                        else:
+                            booking_candidate = val
+                        break
+
+    # --- LEVEL 4: If Work Order / Booking mentioned with Style numbers ---
+    if not booking_candidate:
+        style_match = re.search(r'\b(?:style|styles)[\s#:\-_]*([A-Za-z0-9\-_/]{4,20})\b', combined, re.IGNORECASE)
+        if style_match and (is_work_order or is_revised):
+            st_val = clean_extracted_value(style_match.group(1))
+            if st_val and st_val.lower() not in EXCLUDE_WORDS and any(c.isdigit() for c in st_val):
+                company = extract_company_name(sender=sender, body=body_txt, buyer_name=buyer_name)
+                booking_candidate = f"Style-{st_val} ({company})"
+
+    # --- REVISED / WORK ORDER Tagging ---
+    if booking_candidate:
+        booking_candidate = clean_extracted_value(booking_candidate)
+        if is_revised and not "REVISE" in booking_candidate.upper():
+            booking_candidate = f"{booking_candidate} (Revised)"
+
+    # --- LEVEL 5: Fallback to Company Name ---
+    if not booking_candidate or booking_candidate.lower() in EXCLUDE_WORDS:
+        company = extract_company_name(sender=sender, body=body_txt, buyer_name=buyer_name)
+        if is_work_order and is_revised:
+            booking_candidate = f"Revised Work Order - {company}"
+        elif is_work_order:
+            booking_candidate = f"Work Order - {company}"
+        elif is_revised:
+            booking_candidate = f"Revised Booking - {company}"
+        else:
+            booking_candidate = company
+
+    return clean_extracted_value(booking_candidate)
 
 def extract_subject_details(subject: str) -> Dict[str, Optional[str]]:
     """
@@ -300,7 +483,8 @@ def extract_full_order(
     subject: str,
     body_plain: str = "",
     body_html: str = "",
-    attachment_data: Optional[List[Dict[str, Any]]] = None
+    attachment_data: Optional[List[Dict[str, Any]]] = None,
+    sender: str = ""
 ) -> Dict[str, Any]:
     """
     Unified extraction pipeline:
@@ -340,26 +524,32 @@ def extract_full_order(
         if total_amount == 0.0 and sum_amt > 0.0:
             total_amount = sum_amt
 
-    # Check for body-level PO / Booking if not in subject
     po_number = subject_info.get("po_number")
-    booking_number = subject_info.get("booking_number")
     buyer_name = subject_info.get("buyer_name")
     order_type = subject_info.get("order_type") or "Purchase Order"
 
+    # Deep body observation for PO if missing
     if not po_number:
         body_po = re.search(r'\b(?:PO|P\.O\.|Purchase\s*Order)[\s#:\-_]*([A-Za-z0-9\-_]{4,25})\b', combined_text, re.IGNORECASE)
         if body_po:
             po_number = clean_extracted_value(body_po.group(1))
 
-    if not booking_number:
-        body_bk = re.search(r'\b(?:Booking|BK)[\s#:\-_]*([A-Za-z0-9\-_/]{4,25})\b', combined_text, re.IGNORECASE)
-        if body_bk:
-            booking_number = clean_extracted_value(body_bk.group(1))
-
+    # Deep body observation for Buyer if missing
     if not buyer_name:
         body_buyer = re.search(r'\b(?:Buyer|Customer)[\s:=]+([A-Za-z0-9\s&.\-]+?)(?:\r|\n|$)', combined_text, re.IGNORECASE)
         if body_buyer:
             buyer_name = clean_extracted_value(body_buyer.group(1))
+        if not buyer_name:
+            buyer_name = extract_company_name(sender=sender, body=combined_text)
+
+    # Advanced Booking Number Extraction with deep body observation,
+    # Revise Booking, REVISED WORK ORDER, RE: 1350/26, CCKL body collection, and Company fallback
+    booking_number = extract_advanced_booking_number(
+        subject=subject,
+        body=combined_text,
+        sender=sender,
+        buyer_name=buyer_name or ""
+    )
 
     # Calculate Confidence Score (0.0 to 1.0)
     score = 0.0

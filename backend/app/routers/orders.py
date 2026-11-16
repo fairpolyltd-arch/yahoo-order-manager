@@ -269,7 +269,7 @@ def simulate_order_ingest(
     db.add(raw_email)
     db.flush()
 
-    extracted = extract_full_order(subject=subject, body_plain=body, body_html="")
+    extracted = extract_full_order(subject=subject, body_plain=body, body_html="", sender=sender)
 
     new_order = Order(
         email_id=raw_email.id,
